@@ -24,7 +24,7 @@ const SellerInventoryPage = () => {
 
   // Handle row click - navigate to edit page
   const handleRowClick = (item) => {
-    router.push(`/dashboard/seller/inventory/edit/${item.variantId}`);
+    router.push(`/dashboard/inventory/edit/${item.variantId}`);
   };
 
   // Fetch inventory data

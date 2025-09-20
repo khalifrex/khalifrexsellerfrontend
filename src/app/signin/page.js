@@ -1,20 +1,18 @@
 'use client';
-
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import Image from 'next/image';
 
-export default function LoginPage({
+export default function SellerSignIn({
   routerOverride = null,
   onSuccess = null,
   disableRedirect = false
 }) {
   const defaultRouter = useRouter();
-  const searchParams = useSearchParams();
   const router = routerOverride || defaultRouter;
 
   const [formData, setFormData] = useState({
@@ -33,11 +31,6 @@ export default function LoginPage({
     if (sellerAccessError) setSellerAccessError(false);
   };
 
-  // Always redirect to home page after successful login
-  const handlePostLoginRedirect = () => {
-    router.push('/dashboard');
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -47,7 +40,7 @@ export default function LoginPage({
     const apiURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3092';
 
     try {
-      // 1. Login request
+      // Login request
       const res = await fetch(`${apiURL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,56 +51,61 @@ export default function LoginPage({
       const data = await res.json();
 
       if (!res.ok) {
+        // Check if it's invalid credentials vs account not found
+        if (res.status === 401) {
+          throw new Error(data.message || 'Invalid email or password');
+        }
         throw new Error(data.message || 'Login failed');
       }
 
-      // Validate that user data exists and has seller role
       if (!data.user) {
         throw new Error('Invalid user data received');
       }
 
-      // Check if user has seller role
-      if (!data.user.roles || !data.user.roles.seller) {
-        throw new Error('SELLER_ACCESS_REQUIRED');
+
+      if (!data.user.roles.seller) {
+        
+        toast.success('Login successful! Let\'s set up your seller account.');
+        setTimeout(() => {
+          router.push('/become-seller');
+        }, 1000);
+        return;
       }
 
-      // 2. Handle guest wishlist/cart merging
-      const guestSessionId = localStorage.getItem('guestSessionId');
-      if (guestSessionId) {
-        try {
-          await fetch(`${apiURL}/buyer/wishlist/merge`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ sessionId: guestSessionId })
-          });
-          
-          localStorage.removeItem('guestSessionId');
-          document.cookie = 'sessionId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        } catch (mergeError) {
-          console.error('Wishlist merge failed:', mergeError);
-        }
+
+      if (!data.sellerStatus?.hasSeller) {
+
+        toast.success('Login successful! Please complete your seller profile.');
+        setTimeout(() => {
+          router.push('/become-seller');
+        }, 1000);
+        return;
       }
+
 
       toast.success('Login successful!');
 
       if (onSuccess) onSuccess();
       if (disableRedirect) return;
 
-      // 3. Always redirect to home page
       setTimeout(() => {
-        handlePostLoginRedirect();
+        router.push('/dashboard');
       }, 1000);
 
     } catch (err) {
       console.error('Login error:', err);
       
-      if (err.message === 'SELLER_ACCESS_REQUIRED') {
-        setSellerAccessError(true);
-      } else {
-        setError(err.message);
-        toast.error(err.message);
+
+      if (err.message.includes('Invalid credentials') || err.message.includes('User not found')) {
+        toast.error('Account not found. Please create an account first.');
+        setTimeout(() => {
+          router.push('/signup');
+        }, 2000);
+        return;
       }
+      
+      setError(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -170,7 +168,7 @@ export default function LoginPage({
                       Become a Seller
                     </Link>
                     <p className="text-xs text-orange-500 mt-2">
-                      Join thousands of successful sellers on Nigerias fastest-growing marketplace
+                      Join thousands of successful sellers on fastest-growing marketplace
                     </p>
                   </div>
                 </div>
@@ -273,54 +271,16 @@ export default function LoginPage({
               </button>
             </form>
 
-            {/* OAuth Section */}
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">or</span>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <a
-                  href={`${apiURL}/auth/google`}
-                  className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 hover:bg-gray-50 focus:ring-4 focus:ring-gray-200 transition-all duration-200 transform hover:scale-[1.02]"
-                >
-                  <Image
-                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                    alt="Google"
-                    width={20}
-                    height={20}
-                    className="mr-2"
-                  />
-                  <span className="font-medium">Sign in with Google</span>
-                </a>
-              </div>
-            </div>
-
             {/* Footer Links */}
             <div className="mt-6 text-center text-sm text-gray-600 space-y-2">
               <p>
-                Dont have a seller account?{' '}
+                Don&apos;t have a Khalifrex account?{' '}
                 <Link
-                  href="/become-seller"
+                  href="/signup"
                   className="hover:underline font-medium"
                   style={{ color: '#127ACA' }}
                 >
-                  Become a Seller
-                </Link>
-              </p>
-              <p>
-                Looking to shop instead?{' '}
-                <Link
-                  href="/login"
-                  className="hover:underline font-medium"
-                  style={{ color: '#127ACA' }}
-                >
-                  Buyer Login
+                  Create an account
                 </Link>
               </p>
             </div>

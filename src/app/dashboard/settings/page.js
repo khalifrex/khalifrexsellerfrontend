@@ -50,7 +50,6 @@ export default function SettingsPage() {
         setStoreForm({
           storeName: data.storeName || "",
           email: data.email || "",
-          phone: data.phone || "",
         });
 
         const resSettings = await fetch(

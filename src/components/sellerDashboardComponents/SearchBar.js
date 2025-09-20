@@ -39,15 +39,15 @@ export default function SearchBar({ searchOpen, setSearchOpen }) {
     setShowSuggestions(false);
     setSearchOpen(false);
     setSearchQuery("");
-    if (type === "product") router.push(`/dashboard/seller/inventory/edit/${id}`);
-    if (type === "order") router.push(`/dashboard/seller/orders?orderId=${id}`);
-    if (type === "customer") router.push(`/dashboard/seller/customers?customerId=${id}`);
+    if (type === "product") router.push(`/dashboard/inventory/edit/${id}`);
+    if (type === "order") router.push(`/dashboard/orders?orderId=${id}`);
+    if (type === "customer") router.push(`/dashboard/customers?customerId=${id}`);
   };
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/dashboard/seller/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      router.push(`/dashboard/search?q=${encodeURIComponent(searchQuery.trim())}`);
       setSearchOpen(false);
       setSearchQuery("");
       setShowSuggestions(false);
@@ -83,7 +83,7 @@ export default function SearchBar({ searchOpen, setSearchOpen }) {
       <button type="submit" className="p-2 rounded hover:bg-gray-100 transition">
         <Search size={16} />
       </button>
-      <Link href="/dashboard/seller/orders" className="p-2 rounded hover:bg-gray-100 transition">
+      <Link href="/dashboard/orders" className="p-2 rounded hover:bg-gray-100 transition">
         <ShoppingBag size={16} />
       </Link>
       {showSuggestions && (

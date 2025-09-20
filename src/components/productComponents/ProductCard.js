@@ -25,7 +25,7 @@ export default function ProductCard({ product }) {
   useEffect(() => {
     const checkWishlist = async () => {
       try {
-        const res = await fetch("http://localhost:3092/buyer/wishlist", {
+        const res = await fetch("http://localhost:3092/wishlist", {
           credentials: "include",
         });
         if (!res.ok) return;
@@ -131,7 +131,7 @@ export default function ProductCard({ product }) {
     try {
       if (wishlisted) {
         // Remove from wishlist
-        const res = await fetch(`${apiURL}/buyer/wishlist/${productIdForWishlist}`, {
+        const res = await fetch(`${apiURL}/wishlist/${productIdForWishlist}`, {
           method: "DELETE",
           credentials: "include",
         });
@@ -145,7 +145,7 @@ export default function ProductCard({ product }) {
         }
       } else {
         // Add to wishlist
-        const res = await fetch(`${apiURL}/buyer/wishlist`, {
+        const res = await fetch(`${apiURL}/wishlist`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",

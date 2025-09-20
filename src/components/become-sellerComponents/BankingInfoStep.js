@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import AddressInput from "./AddressInput";
 
 export default function BankingInfoStep({ 
@@ -5,6 +6,7 @@ export default function BankingInfoStep({
   handleInputChange, 
   updateFormData,
   errors,
+  setErrors,
   countries,
   billingAddressSuggestions,
   showBillingAddressSuggestions,
@@ -12,326 +14,266 @@ export default function BankingInfoStep({
   selectAddress,
   setShowBillingAddressSuggestions
 }) {
-  
-  // Handle card number formatting
-  const handleCardNumberChange = (e) => {
-    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    value = value.substring(0, 16); // Limit to 16 digits
-    value = value.replace(/(\d{4})(?=\d)/g, '$1 '); // Add spaces every 4 digits
-    updateFormData('cardNumber', value);
-  };
+  const [paymentInitialized, setPaymentInitialized] = useState(false);
+  const [paymentVerified, setPaymentVerified] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
 
-  // Handle CVV formatting
-  const handleCvvChange = (e) => {
-    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    value = value.substring(0, 4); // Limit to 4 digits
-    updateFormData('cvv', value);
-  };
-
-  // Check if professional subscription is selected
   const isProfessional = formData.subscriptionType === 'professional';
 
-  const handleBillingAddressSelect = (address) => {
-    // Parse the selected address into structured format
-    const addressComponents = parseAddress(address.display_name);
-    
-    // Update the form data with the selected billing address
-    updateFormData('billingAddress', {
-      country: addressComponents.country,
-      zipCode: addressComponents.zipCode || '',
-      addressLine1: addressComponents.addressLine1,
-      addressLine2: addressComponents.addressLine2 || '',
-      city: addressComponents.city,
-      state: addressComponents.state
-    });
-    
-    // Also store the display name for the input field
-    updateFormData('billingAddressDisplay', address.display_name);
-    
-    // Call the parent's select address function
-    selectAddress(address, 'billing');
+  // Initialize Paystack payment
+  const initializePayment = async () => {
+    if (!formData.firstName || !formData.lastName) {
+      setPaymentError('Please complete your personal information first');
+      return;
+    }
+
+    if (!formData.billingAddress?.addressLine1) {
+      setPaymentError('Please complete your billing address first');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setPaymentError('');
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/initialize-subscription-payment`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: 'salehdiddi@gmail.com',
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          businessName: formData.businessName,
+          userId: formData.userId
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Store payment reference
+        updateFormData('paymentReference', data.reference);
+        
+        // Redirect to Paystack payment page
+        window.location.href = data.authorizationUrl;
+      } else {
+        setPaymentError(data.message || 'Failed to initialize payment');
+      }
+    } catch (error) {
+      console.error('Payment initialization error:', error);
+      setPaymentError('Failed to initialize payment. Please try again.');
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
-  const parseAddress = (displayName) => {
-    // Basic address parsing
-    const parts = displayName.split(', ');
-    return {
-      addressLine1: parts[0] || '',
-      city: parts.length > 2 ? parts[parts.length - 3] : '',
-      state: parts.length > 1 ? parts[parts.length - 2] : '',
-      country: parts.length > 0 ? parts[parts.length - 1] : ''
-    };
+
+  const verifyPayment = async (reference) => {
+    if (!reference) return;
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/verify-subscription-payment`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reference })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setPaymentVerified(true);
+        setPaymentError('');
+        updateFormData('authorizationCode', data.authorizationCode);
+        
+        // Clear any payment errors
+        if (errors.payment) {
+          const newErrors = { ...errors };
+          delete newErrors.payment;
+          setErrors(newErrors);
+        }
+      } else {
+        setPaymentError('Payment verification failed. Please try again.');
+        setPaymentVerified(false);
+      }
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      setPaymentError('Payment verification failed. Please try again.');
+      setPaymentVerified(false);
+    }
   };
+
+  // Check for payment callback on component mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const reference = urlParams.get('reference');
+    const status = urlParams.get('status');
+    
+    if (reference && status === 'success') {
+      updateFormData('paymentReference', reference);
+      verifyPayment(reference);
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  // Check if payment is already completed
+  useEffect(() => {
+    if (formData.paymentReference && formData.authorizationCode) {
+      setPaymentVerified(true);
+    }
+  }, [formData.paymentReference, formData.authorizationCode]);
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">Banking & Payment Information</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">Payment Information</h2>
       
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <p className="text-sm text-blue-800">
-          <strong>Important:</strong> Banking information is required for payouts. Card information is only required for Professional subscription.
+          <strong>Payment Information:</strong> Only required for Professional subscription ($15/month). Banking details for payouts will be collected after account verification.
         </p>
       </div>
 
-      {/* Banking Information */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-800 border-b pb-2">Banking Details</h3>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Bank Name *
-          </label>
-          <input
-            type="text"
-            name="bankName"
-            value={formData.bankName}
-            onChange={handleInputChange}
-            className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-              errors.bankName ? 'border-red-300' : 'border-gray-300'
-            }`}
-            style={{ '--tw-ring-color': '#0C7FD2' }}
-            onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-            onBlur={(e) => e.target.style.borderColor = errors.bankName ? '#f87171' : '#d1d5db'}
-            placeholder="e.g., First Bank of Nigeria, GTBank, Access Bank"
-          />
-          {errors.bankName && <p className="text-red-500 text-xs mt-1">{errors.bankName}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Account Number *
-          </label>
-          <input
-            type="text"
-            name="accountNumber"
-            value={formData.accountNumber}
-            onChange={handleInputChange}
-            className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-              errors.accountNumber ? 'border-red-300' : 'border-gray-300'
-            }`}
-            style={{ '--tw-ring-color': '#0C7FD2' }}
-            onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-            onBlur={(e) => e.target.style.borderColor = errors.accountNumber ? '#f87171' : '#d1d5db'}
-            placeholder="1234567890"
-            maxLength="20"
-          />
-          {errors.accountNumber && <p className="text-red-500 text-xs mt-1">{errors.accountNumber}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Account Holder Name *
-          </label>
-          <input
-            type="text"
-            name="accountHolderName"
-            value={formData.accountHolderName}
-            onChange={handleInputChange}
-            className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-              errors.accountHolderName ? 'border-red-300' : 'border-gray-300'
-            }`}
-            style={{ '--tw-ring-color': '#0C7FD2' }}
-            onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-            onBlur={(e) => e.target.style.borderColor = errors.accountHolderName ? '#f87171' : '#d1d5db'}
-            placeholder="John Doe (as it appears on your bank account)"
-          />
-          {errors.accountHolderName && <p className="text-red-500 text-xs mt-1">{errors.accountHolderName}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Routing Number (Optional)
-          </label>
-          <input
-            type="text"
-            name="routingNumber"
-            value={formData.routingNumber || ''}
-            onChange={handleInputChange}
-            className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-              errors.routingNumber ? 'border-red-300' : 'border-gray-300'
-            }`}
-            style={{ '--tw-ring-color': '#0C7FD2' }}
-            onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-            onBlur={(e) => e.target.style.borderColor = errors.routingNumber ? '#f87171' : '#d1d5db'}
-            placeholder="For international transfers (if applicable)"
-          />
-          {errors.routingNumber && <p className="text-red-500 text-xs mt-1">{errors.routingNumber}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Bank Country *
-          </label>
-          <select
-            name="bankCountry"
-            value={formData.bankCountry}
-            onChange={handleInputChange}
-            className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-              errors.bankCountry ? 'border-red-300' : 'border-gray-300'
-            }`}
-            style={{ '--tw-ring-color': '#0C7FD2' }}
-            onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-            onBlur={(e) => e.target.style.borderColor = errors.bankCountry ? '#f87171' : '#d1d5db'}
-          >
-            <option value="">Select Bank Country</option>
-            {countries.map(country => (
-              <option key={country.id} value={country.name}>
-                {country.emoji} {country.name}
-              </option>
-            ))}
-          </select>
-          {errors.bankCountry && <p className="text-red-500 text-xs mt-1">{errors.bankCountry}</p>}
-        </div>
-      </div>
-
-      {/* Subscription Card Information - Only show for Professional */}
-      {isProfessional && (
+      {/* Professional subscription payment */}
+      {isProfessional ? (
         <div className="space-y-4 border-t pt-6">
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
             <h3 className="text-lg font-medium text-amber-800 border-b border-amber-200 pb-2 mb-2">
-              Professional Subscription Payment
+              Professional Subscription - $15/month
             </h3>
             <p className="text-sm text-amber-700">
-              <strong>Required:</strong> Professional subscription requires payment method information.
+              <strong>Secure Payment:</strong> Your first payment will be processed immediately via Paystack, then automatically charged monthly.
             </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Card Number *
-              </label>
-              <input
-                type="text"
-                name="cardNumber"
-                value={formData.cardNumber || ''}
-                onChange={handleCardNumberChange}
-                className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-                  errors.cardNumber ? 'border-red-300' : 'border-gray-300'
-                }`}
-                style={{ '--tw-ring-color': '#0C7FD2' }}
-                onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-                onBlur={(e) => e.target.style.borderColor = errors.cardNumber ? '#f87171' : '#d1d5db'}
-                placeholder="1234 5678 9012 3456"
-              />
-              {errors.cardNumber && <p className="text-red-500 text-xs mt-1">{errors.cardNumber}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Card Holder Name *
-              </label>
-              <input
-                type="text"
-                name="cardHolderName"
-                value={formData.cardHolderName || ''}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-                  errors.cardHolderName ? 'border-red-300' : 'border-gray-300'
-                }`}
-                style={{ '--tw-ring-color': '#0C7FD2' }}
-                onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-                onBlur={(e) => e.target.style.borderColor = errors.cardHolderName ? '#f87171' : '#d1d5db'}
-                placeholder="John Doe"
-              />
-              {errors.cardHolderName && <p className="text-red-500 text-xs mt-1">{errors.cardHolderName}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Expiry Month *
-              </label>
-              <select
-                name="expiresOn"
-                value={formData.expiresOn || ''}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-                  errors.expiresOn ? 'border-red-300' : 'border-gray-300'
-                }`}
-                style={{ '--tw-ring-color': '#0C7FD2' }}
-                onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-                onBlur={(e) => e.target.style.borderColor = errors.expiresOn ? '#f87171' : '#d1d5db'}
-              >
-                <option value="">Select Month</option>
-                {Array.from({length: 12}, (_, i) => i + 1).map(month => (
-                  <option key={month} value={month.toString().padStart(2, '0')}>
-                    {month.toString().padStart(2, '0')}
-                  </option>
-                ))}
-              </select>
-              {errors.expiresOn && <p className="text-red-500 text-xs mt-1">{errors.expiresOn}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Expiry Year *
-              </label>
-              <select
-                name="year"
-                value={formData.year || ''}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-                  errors.year ? 'border-red-300' : 'border-gray-300'
-                }`}
-                style={{ '--tw-ring-color': '#0C7FD2' }}
-                onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-                onBlur={(e) => e.target.style.borderColor = errors.year ? '#f87171' : '#d1d5db'}
-              >
-                <option value="">Select Year</option>
-                {Array.from({length: 20}, (_, i) => new Date().getFullYear() + i).map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-              {errors.year && <p className="text-red-500 text-xs mt-1">{errors.year}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                CVV *
-              </label>
-              <input
-                type="text"
-                name="cvv"
-                value={formData.cvv || ''}
-                onChange={handleCvvChange}
-                className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-                  errors.cvv ? 'border-red-300' : 'border-gray-300'
-                }`}
-                style={{ '--tw-ring-color': '#0C7FD2' }}
-                onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-                onBlur={(e) => e.target.style.borderColor = errors.cvv ? '#f87171' : '#d1d5db'}
-                placeholder="123"
-              />
-              {errors.cvv && <p className="text-red-500 text-xs mt-1">{errors.cvv}</p>}
+            <div className="mt-2 flex items-center space-x-2">
+              <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span className="text-xs text-green-700">Secured by Paystack</span>
             </div>
           </div>
 
-          {/* Billing Address for Professional Subscription */}
-  <div className="mt-6">
-  <AddressInput
-    label="Billing Address"
-    addressData={formData.billingAddress}
-    updateAddress={(addressData) => updateFormData('billingAddress', addressData)}
-    errors={errors.billingAddress}
-    suggestions={billingAddressSuggestions}
-    showSuggestions={showBillingAddressSuggestions}
-    onAddressLineInput={(value) => {
-      // Update form data immediately
-      updateFormData('billingAddressDisplay', value);
-      // Trigger address search
-      handleAddressInput(value, 'billing');
-    }}
-    onSelectSuggestion={(suggestion) => selectAddress(suggestion, 'billing')}
-    setShowSuggestions={setShowBillingAddressSuggestions}
-    countries={countries}
-    required={true}
-  />
-</div>
+          {/* Billing Address */}
+          <div className="mb-6">
+            <AddressInput
+              label="Billing Address"
+              addressData={formData.billingAddress}
+              updateAddress={(addressData) => updateFormData('billingAddress', addressData)}
+              errors={errors.billingAddress}
+              suggestions={billingAddressSuggestions}
+              showSuggestions={showBillingAddressSuggestions}
+              onAddressLineInput={(value) => {
+                updateFormData('billingAddressDisplay', value);
+                handleAddressInput(value, 'billing');
+              }}
+              onSelectSuggestion={(suggestion) => selectAddress(suggestion, 'billing')}
+              setShowSuggestions={setShowBillingAddressSuggestions}
+              countries={countries}
+              required={true}
+            />
+          </div>
+
+          {/* Payment Section */}
+          <div className="space-y-4">
+            {!paymentVerified ? (
+              <>
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h4 className="text-md font-medium text-gray-900 mb-2">Payment Required</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Complete your payment to activate your Professional subscription with advanced seller tools.
+                  </p>
+                  
+                  <button
+                    type="button"
+                    onClick={initializePayment}
+                    disabled={isProcessingPayment || !formData.billingAddress?.addressLine1}
+                    className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
+                      isProcessingPayment || !formData.billingAddress?.addressLine1
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-600 text-white hover:bg-green-700 focus:ring-4 focus:ring-green-200'
+                    }`}
+                  >
+                    {isProcessingPayment ? (
+                      <div className="flex items-center justify-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing...
+                      </div>
+                    ) : (
+                      'Pay $15.00 with Paystack'
+                    )}
+                  </button>
+                  
+                  {!formData.billingAddress?.addressLine1 && (
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      Please complete your billing address to continue
+                    </p>
+                  )}
+                </div>
+
+                {paymentError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-700">{paymentError}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Payment Verified */
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <svg className="h-6 w-6 text-green-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Payment Successful!</p>
+                    <p className="text-xs text-green-700">Your Professional subscription is ready to activate.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Features */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <h5 className="text-sm font-semibold text-gray-800 mb-2">Professional Features Include:</h5>
+              <ul className="text-xs text-gray-600 space-y-1">
+                <li className="flex items-center">
+                  <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Advanced analytics and reporting
+                </li>
+                <li className="flex items-center">
+                  <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Priority customer support
+                </li>
+                <li className="flex items-center">
+                  <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Bulk product management tools
+                </li>
+                <li className="flex items-center">
+                  <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Enhanced store customization
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
-      )}
-
-      {/* Free subscription note */}
-      {!isProfessional && (
+      ) : (
+        /* Free subscription note */
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <p className="text-sm text-green-700">
             <strong>Free Plan Selected:</strong> No payment information required. You can upgrade to Professional later from your dashboard.
@@ -339,68 +281,13 @@ export default function BankingInfoStep({
         </div>
       )}
 
-      {/* Payout Method Selection */}
-      <div className="border-t pt-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Preferred Payout Method *
-        </label>
-        <div className="space-y-3">
-          <div className="border rounded-lg p-4 bg-green-50 border-green-200">
-            <label className="flex items-start">
-              <input
-                type="radio"
-                name="payoutMethod"
-                value="paystack"
-                checked={formData.payoutMethod === 'paystack'}
-                onChange={handleInputChange}
-                className="mt-1 mr-3"
-                style={{ accentColor: '#10b981' }}
-              />
-              <div>
-                <div className="font-medium text-green-800">Paystack</div>
-                <div className="text-sm text-green-600">Local Nigerian bank transfers</div>
-                <div className="text-xs text-green-500 mt-1">
-                  • Faster payouts to Nigerian banks<br />
-                  • Lower fees for local transfers<br />
-                  • Recommended for Nigerian sellers
-                </div>
-              </div>
-            </label>
-          </div>
-
-          <div className="border rounded-lg p-4 bg-blue-50 border-blue-200">
-            <label className="flex items-start">
-              <input
-                type="radio"
-                name="payoutMethod"
-                value="payoneer"
-                checked={formData.payoutMethod === 'payoneer'}
-                onChange={handleInputChange}
-                className="mt-1 mr-3"
-                style={{ accentColor: '#0C7FD2' }}
-              />
-              <div>
-                <div className="font-medium" style={{ color: '#0C7FD2' }}>Payoneer</div>
-                <div className="text-sm" style={{ color: '#0C7FD2', opacity: 0.8 }}>International transfers</div>
-                <div className="text-xs mt-1" style={{ color: '#0C7FD2', opacity: 0.7 }}>
-                  • Global payout options<br />
-                  • Multi-currency support<br />
-                  • Good for international sellers
-                </div>
-              </div>
-            </label>
-          </div>
-        </div>
-        {errors.payoutMethod && <p className="text-red-500 text-xs mt-1">{errors.payoutMethod}</p>}
-      </div>
-
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-yellow-800 mb-2">Security Note:</h4>
+        <h4 className="text-sm font-semibold text-yellow-800 mb-2">What&apos;s Next:</h4>
         <ul className="text-xs text-yellow-700 space-y-1">
-          <li>• Your financial information is encrypted and stored securely</li>
-          <li>• We never store your full card details in plain text</li>
-          <li>• Account verification may be required before first payout</li>
-          <li>• Ensure account name matches your registered business/personal name</li>
+          <li>• Banking details for payouts will be collected after verification</li>
+          <li>• All payment processing is handled securely by Paystack</li>
+          <li>• Monthly billing is automatic - cancel anytime from your dashboard</li>
+          <li>• Professional features activate immediately after verification</li>
         </ul>
       </div>
     </div>

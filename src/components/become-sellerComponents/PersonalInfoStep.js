@@ -1,4 +1,4 @@
-import { User, Mail, Phone, MapPin } from 'lucide-react';
+import { User, Phone, MapPin } from 'lucide-react';
 import AddressInput from './AddressInput';
 
 export default function PersonalInfoStep({
@@ -7,7 +7,7 @@ export default function PersonalInfoStep({
   updateFormData,
   errors,
   countries,
-  states,
+  residentialStates,
   addressSuggestions,
   showAddressSuggestions,
   handleAddressInput,
@@ -20,12 +20,14 @@ export default function PersonalInfoStep({
     
     // Update the form data with the selected address
     updateFormData('residentialAddress', {
-      country: addressComponents.country || formData.userCountry,
+      fullName: formData.residentialAddress?.fullName || `${formData.firstName} ${formData.lastName}`.trim(),
+      country: addressComponents.country || formData.residentialAddress?.country,
       zipCode: addressComponents.zipCode || '',
       addressLine1: addressComponents.addressLine1,
       addressLine2: addressComponents.addressLine2 || '',
       city: addressComponents.city,
-      state: addressComponents.state || formData.userState
+      state: addressComponents.state || formData.residentialAddress?.state,
+      phoneNumber: formData.residentialAddress?.phoneNumber || formData.phoneNumber
     });
     
     // Also store the display name for the input field
@@ -50,7 +52,7 @@ export default function PersonalInfoStep({
     <div className="space-y-4">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Personal Information</h2>
       
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             First Name *
@@ -66,12 +68,31 @@ export default function PersonalInfoStep({
                 errors.firstName ? 'border-red-300' : 'border-gray-300'
               }`}
               style={{ '--tw-ring-color': '#0C7FD2' }}
-              onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-              onBlur={(e) => e.target.style.borderColor = errors.firstName ? '#f87171' : '#d1d5db'}
               placeholder="John"
             />
           </div>
           {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Middle Name
+          </label>
+          <div className="relative">
+            <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              name="middleName"
+              value={formData.middleName || ''}
+              onChange={handleInputChange}
+              className={`w-full pl-10 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
+                errors.middleName ? 'border-red-300' : 'border-gray-300'
+              }`}
+              style={{ '--tw-ring-color': '#0C7FD2' }}
+              placeholder="Optional"
+            />
+          </div>
+          {errors.middleName && <p className="text-red-500 text-xs mt-1">{errors.middleName}</p>}
         </div>
 
         <div>
@@ -89,36 +110,11 @@ export default function PersonalInfoStep({
                 errors.lastName ? 'border-red-300' : 'border-gray-300'
               }`}
               style={{ '--tw-ring-color': '#0C7FD2' }}
-              onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-              onBlur={(e) => e.target.style.borderColor = errors.lastName ? '#f87171' : '#d1d5db'}
               placeholder="Doe"
             />
           </div>
           {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
         </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Email Address *
-        </label>
-        <div className="relative">
-          <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleInputChange}
-            className={`w-full pl-10 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-              errors.email ? 'border-red-300' : 'border-gray-300'
-            }`}
-            style={{ '--tw-ring-color': '#0C7FD2' }}
-            onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-            onBlur={(e) => e.target.style.borderColor = errors.email ? '#f87171' : '#d1d5db'}
-            placeholder="john@example.com"
-          />
-        </div>
-        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
       </div>
 
       <div>
@@ -129,19 +125,17 @@ export default function PersonalInfoStep({
           <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
           <input
             type="tel"
-            name="phone"
-            value={formData.phone}
+            name="phoneNumber"
+            value={formData.phoneNumber}
             onChange={handleInputChange}
             className={`w-full pl-10 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
-              errors.phone ? 'border-red-300' : 'border-gray-300'
+              errors.phoneNumber ? 'border-red-300' : 'border-gray-300'
             }`}
             style={{ '--tw-ring-color': '#0C7FD2' }}
-            onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-            onBlur={(e) => e.target.style.borderColor = errors.phone ? '#f87171' : '#d1d5db'}
             placeholder="+234 800 000 0000"
           />
         </div>
-        {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+        {errors.phoneNumber && <p className="text-red-500 text-xs mt-1">{errors.phoneNumber}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -157,12 +151,10 @@ export default function PersonalInfoStep({
               errors.countryOfCitizenship ? 'border-red-300' : 'border-gray-300'
             }`}
             style={{ '--tw-ring-color': '#0C7FD2' }}
-            onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-            onBlur={(e) => e.target.style.borderColor = errors.countryOfCitizenship ? '#f87171' : '#d1d5db'}
           >
             <option value="">Select Country</option>
             {countries.map(country => (
-              <option key={country.id} value={country.name}>
+              <option key={country.countryCode} value={country.name}>
                 {country.emoji} {country.name}
               </option>
             ))}
@@ -182,12 +174,10 @@ export default function PersonalInfoStep({
               errors.countryOfBirth ? 'border-red-300' : 'border-gray-300'
             }`}
             style={{ '--tw-ring-color': '#0C7FD2' }}
-            onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-            onBlur={(e) => e.target.style.borderColor = errors.countryOfBirth ? '#f87171' : '#d1d5db'}
           >
             <option value="">Select Country</option>
             {countries.map(country => (
-              <option key={country.id} value={country.name}>
+              <option key={country.countryCode} value={country.name}>
                 {country.emoji} {country.name}
               </option>
             ))}
@@ -210,31 +200,28 @@ export default function PersonalInfoStep({
             errors.dateOfBirth ? 'border-red-300' : 'border-gray-300'
           }`}
           style={{ '--tw-ring-color': '#0C7FD2' }}
-          onFocus={(e) => e.target.style.borderColor = '#0C7FD2'}
-          onBlur={(e) => e.target.style.borderColor = errors.dateOfBirth ? '#f87171' : '#d1d5db'}
           required
         />
         {errors.dateOfBirth && <p className="text-red-500 text-xs mt-1">{errors.dateOfBirth}</p>}
       </div>
 
       <AddressInput
-  label="Residential Address"
-  addressData={formData.residentialAddress}
-  updateAddress={(addressData) => updateFormData('residentialAddress', addressData)}
-  errors={errors.residentialAddress}
-  suggestions={addressSuggestions}
-  showSuggestions={showAddressSuggestions}
-  onAddressLineInput={(value) => {
-    // Update form data immediately
-    updateFormData('userAddress', value);
-    // Trigger address search
-    handleAddressInput(value, 'user');
-  }}
-  onSelectSuggestion={(suggestion) => selectAddress(suggestion, 'user')}
-  setShowSuggestions={setShowAddressSuggestions}
-  countries={countries}
-  required={true}
-/>
+        label="Residential Address"
+        addressData={formData.residentialAddress}
+        updateAddress={(addressData) => updateFormData('residentialAddress', addressData)}
+        errors={errors.residentialAddress}
+        suggestions={addressSuggestions}
+        showSuggestions={showAddressSuggestions}
+        onAddressLineInput={(value) => {
+          updateFormData('userAddress', value);
+          handleAddressInput(value, 'user');
+        }}
+        onSelectSuggestion={(suggestion) => selectAddress(suggestion, 'user')}
+        setShowSuggestions={setShowAddressSuggestions}
+        countries={countries}
+        states={residentialStates}
+        required={true}
+      />
     </div>
   );
 }

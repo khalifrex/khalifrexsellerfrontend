@@ -11,10 +11,10 @@ import toast from "react-hot-toast";
 
 // Import custom hooks and components
 import { useProductSearch } from "@/hooks/useProductSearch";
-import { ProductCard } from "@/components/SearchProductCard";
-import { VariantsModal } from "@/components/VariantsModal";
-import { VariantCreationModal } from "@/components/VariantCreationModal";
-import { OfferModal } from "@/components/OfferModal";
+import { ProductCard } from "@/components/productComponents/SearchProductCard";
+import { VariantsModal } from "@/components/productComponents/VariantsModal";
+import { VariantCreationModal } from "@/components/productComponents/VariantCreationModal";
+import { OfferModal } from "@/components/productComponents/OfferModal";
 import { getCleanVariantId } from "@/utils/productUtils";
 
 export default function SellExistingProduct() {
@@ -213,7 +213,7 @@ export default function SellExistingProduct() {
             We couldnt find any products matching {searchTerm}
           </p>
           <button
-            onClick={() => router.push('/dashboard/seller/products/create-new')}
+            onClick={() => router.push('/dashboard/products/create-new')}
             className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
           >
             Add New Product Instead

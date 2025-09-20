@@ -54,7 +54,7 @@ export default function TopProducts() {
       <div className="flex items-center justify-between mb-2">
         <p className="font-medium">Top Products</p>
         <Link
-          href="/dashboard/seller/products"
+          href="/dashboard/products"
           className="text-sm text-[#1888CA] hover:underline"
         >
           View All
@@ -78,7 +78,7 @@ export default function TopProducts() {
               <div className="flex items-center justify-between">
                 {/* Make product clickable */}
                 <Link
-                  href={`/dashboard/seller/products/${product.slug || product._id}`}
+                  href={`/dashboard/products/${product.slug || product._id}`}
                   className="flex items-center gap-3 hover:opacity-80 transition"
                 >
                   <div className="w-10 h-10 relative">

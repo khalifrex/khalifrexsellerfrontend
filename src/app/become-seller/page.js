@@ -1,19 +1,18 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Image from 'next/image';
 
 // Import step components
-import StepIndicator from '@/components/become-sellerComponents/StepIndicator';
 import PersonalInfoStep from '@/components/become-sellerComponents/PersonalInfoStep';
 import BusinessDetailsStep from '@/components/become-sellerComponents/BusinessDetailsStep';
 import StoreSetupStep from '@/components/become-sellerComponents/StoreSetupStep';
-import BankingInfoStep from '@/components/become-sellerComponents/BankingInfoStep';
 import DocumentsStep from '@/components/become-sellerComponents/DocumentsStep';
 import SecurityStep from '@/components/become-sellerComponents/SecurityStep';
+import ProfessionalPaymentStep from '@/components/become-sellerComponents/ProfessionalPaymentStep';
 
 // Import hooks and utilities
 import { useFormData } from '@/hooks/useFormData';
@@ -21,71 +20,187 @@ import { useLocationData } from '@/hooks/useLocationData';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useFormValidation } from '@/hooks/useFormValidation';
 
-export default function SellerSignupPage() {
+export default function SellOnKhalifrex() {
   const router = useRouter();
-
+  const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [sellerCreated, setSellerCreated] = useState(false);
+  const [sellerId, setSellerId] = useState(null);
+  
+  // Payment callback state
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState(null);
 
+  useEffect(() => {
+    const handlePaymentCallback = async () => {
+      const reference = searchParams.get('reference');
+      const trxref = searchParams.get('trxref');
+      const status = searchParams.get('status');
+      const paymentType = searchParams.get('paymentType');
+      const sellerIdFromUrl = searchParams.get('sellerId');
+      
+      console.log('Checking for payment callback:', {
+        reference,
+        trxref, 
+        status,
+        paymentType,
+        sellerIdFromUrl,
+        localStorage: localStorage.getItem('pendingSellerId')
+      });
+      
+      // Check if this is a payment callback
+      if ((reference || trxref) && paymentType === 'professional') {
+        console.log('Payment callback detected for professional subscription');
+        
+        // Try multiple ways to get seller ID
+        let targetSellerId = sellerIdFromUrl || 
+                           localStorage.getItem('pendingSellerId') || 
+                           sessionStorage.getItem('pendingSellerId');
+        
+        if (!targetSellerId) {
+          // Try to extract from reference if it follows our pattern
+          const referenceToUse = reference || trxref;
+          if (referenceToUse && referenceToUse.includes('prof_payment_')) {
+            const parts = referenceToUse.split('_');
+            if (parts.length >= 3) {
+              targetSellerId = parts[2]; // prof_payment_{sellerId}_{timestamp}_{random}
+              console.log('Extracted seller ID from reference:', targetSellerId);
+            }
+          }
+        }
+        
+        if (!targetSellerId) {
+          console.error('No seller ID found in any location');
+          toast.error('Payment callback received but seller ID not found. Please contact support with reference: ' + (reference || trxref));
+          return;
+        }
+        
+        console.log('Processing payment for seller ID:', targetSellerId);
+        
+        setPaymentProcessing(true);
+        setSellerId(targetSellerId);
+        setSellerCreated(true);
+        setCurrentStep(6);
+        
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/verify-professional-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({ 
+              reference: reference || trxref,
+              sellerId: targetSellerId 
+            })
+          });
+
+          const data = await response.json();
+
+
+          if (data.success) {
+            setPaymentCompleted(true);
+            setPaymentProcessing(false);
+            setPaymentAmount(data.amount);
+            
+            // Clear stored seller IDs
+            localStorage.removeItem('pendingSellerId');
+            sessionStorage.removeItem('pendingSellerId');
+            
+            toast.success(`Payment successful! Professional subscription (${data.amount}) is now active.`);
+            
+
+            setTimeout(() => {
+              router.push(`/await-verification?type=professional&amount=${encodeURIComponent(data.amount)}`);
+            }, 3000);
+          } else {
+            throw new Error(data.message || 'Payment verification failed');
+          }
+        } catch (error) {
+          console.error('Payment verification error:', error);
+          setPaymentProcessing(false);
+          toast.error('Payment verification failed: ' + error.message);
+        }
+        
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    };
+    
+    handlePaymentCallback();
+  }, [searchParams, router]);
+  
   // Custom hooks
   const { formData, handleInputChange, updateFormData, errors, setErrors, setFormData } = useFormData();
-const { 
-  countries, 
-  states, 
-  businessStates, 
-  addressSuggestions,
-  businessAddressSuggestions,
-  billingAddressSuggestions,
-  showAddressSuggestions,
-  showBusinessAddressSuggestions,
-  showBillingAddressSuggestions,
-  handleAddressInput,
-  selectAddress,
-  setShowAddressSuggestions,
-  setShowBusinessAddressSuggestions,
-  setShowBillingAddressSuggestions
-} = useLocationData(formData);
+
+  const { 
+    countries, 
+    states, 
+    businessStates, 
+    addressSuggestions,
+    businessAddressSuggestions,
+    showAddressSuggestions,
+    showBusinessAddressSuggestions,
+    handleAddressInput,
+    selectAddress,
+    setShowAddressSuggestions,
+    setShowBusinessAddressSuggestions
+  } = useLocationData(formData);
   const { uploadedFiles, uploading, handleFileUpload, removeFile, validateAllFiles } = useFileUpload(updateFormData);
   const { validateStep } = useFormValidation();
 
+  // Calculate total steps based on subscription type
+  const totalSteps = formData.subscriptionType === 'professional' ? 6 : 5;
+
   const handleNextStep = () => {
-    // Pass uploadedFiles to validateStep for step 5 (documents step)
+    // Skip banking step for free users
+    let nextStep = currentStep + 1;
+    
+    // For free users, skip step 4 (banking) and go directly to step 5 (documents)
+    if (formData.subscriptionType === 'free' && currentStep === 3) {
+      nextStep = 5;
+    }
+    
     if (validateStep(currentStep, formData, setErrors, currentStep === 5 ? uploadedFiles : null)) {
-      setCurrentStep(prev => Math.min(prev + 1, 6));
+      setCurrentStep(Math.min(nextStep, totalSteps));
     }
   };
 
   const handlePrevStep = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 1));
+    let prevStep = currentStep - 1;
+    
+    // For free users, skip banking step when going back
+    if (formData.subscriptionType === 'free' && currentStep === 5) {
+      prevStep = 3;
+    }
+    
+    setCurrentStep(Math.max(prevStep, 1));
   };
 
-  const handleSubmit = async (e) => {
+  // Create seller account first (without payment)
+  const handleCreateSellerAccount = async (e) => {
     e.preventDefault();
     
-    // Final validation with uploadedFiles
-    if (!validateStep(6, formData, setErrors, uploadedFiles)) return;
-    
-    // Additional file validation
+    // Final validation
+    if (!validateStep(currentStep, formData, setErrors, uploadedFiles)) return;
     if (!validateAllFiles()) return;
     
     setLoading(true);
     
     try {
-      const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3092'}/register`;
+      const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3092'}/create-seller-profile`;
       
-      // Create FormData for multipart/form-data request
       const formDataPayload = new FormData();
       
-      // Add all text fields to match backend schema
-      formDataPayload.append('role', 'seller');
-      formDataPayload.append('fullName', `${formData.firstName} ${formData.lastName}`);
-      formDataPayload.append('email', formData.email);
-      formDataPayload.append('phone', formData.phone);
-      formDataPayload.append('password', formData.password);
-      
-      // Personal details
+      // Add all text fields
       formDataPayload.append('firstName', formData.firstName);
       formDataPayload.append('lastName', formData.lastName);
+      if (formData.middleName) formDataPayload.append('middleName', formData.middleName);
+      formDataPayload.append('phoneNumber', formData.phoneNumber);
+      
+      // Personal details
       formDataPayload.append('countryOfCitizenship', formData.countryOfCitizenship);
       formDataPayload.append('countryOfBirth', formData.countryOfBirth);
       formDataPayload.append('dateOfBirth', formData.dateOfBirth);
@@ -94,64 +209,29 @@ const {
       formDataPayload.append('businessType', formData.businessType);
       formDataPayload.append('businessLocation', formData.businessLocation);
       formDataPayload.append('businessName', formData.businessName);
+      if (formData.companyRegistrationNumber) {
+        formDataPayload.append('companyRegistrationNumber', formData.companyRegistrationNumber);
+      }
       
       // Store details
       formDataPayload.append('storeName', formData.storeName);
       formDataPayload.append('subscriptionType', formData.subscriptionType);
-      formDataPayload.append('payoutMethod', formData.payoutMethod);
-      
-      // Banking details
-      formDataPayload.append('bankName', formData.bankName);
-      formDataPayload.append('accountNumber', formData.accountNumber);
-      formDataPayload.append('accountHolderName', formData.accountHolderName);
       
       // Document types
       formDataPayload.append('governmentIdType', formData.governmentIdType);
       formDataPayload.append('proofOfResidenceType', formData.proofOfResidenceType);
-      formDataPayload.append('identityProofType', formData.governmentIdType); // Backend expects this field too
+      formDataPayload.append('identityProofType', formData.governmentIdType);
       formDataPayload.append('identityProofCountryOfIssue', formData.identityProofCountryOfIssue);
       
-      // Addresses - convert objects to JSON strings or individual fields
-   if (formData.residentialAddress && formData.residentialAddress.addressLine1) {
-  formDataPayload.append('residentialAddress', JSON.stringify(formData.residentialAddress));
-}
-
-if (formData.businessAddress && formData.businessAddress.addressLine1) {
-  formDataPayload.append('businessAddress', JSON.stringify(formData.businessAddress));
-}
-
-if (formData.subscriptionType === 'professional') {
-  // Add card information
-  if (formData.cardNumber) formDataPayload.append('cardNumber', formData.cardNumber.replace(/\s/g, ''));
-  if (formData.expiresOn) formDataPayload.append('expiresOn', formData.expiresOn);
-  if (formData.year) formDataPayload.append('year', formData.year);
-  if (formData.cardHolderName) formDataPayload.append('cardHolderName', formData.cardHolderName);
-  if (formData.cvv) formDataPayload.append('cvv', formData.cvv);
-  
-  // Add billing address
-  if (formData.billingAddress && formData.billingAddress.addressLine1) {
-    formDataPayload.append('billingAddress', JSON.stringify(formData.billingAddress));
-  }
-}
-      // Shipping countries
-      if (formData.shippingCountries && formData.shippingCountries.length > 0) {
-        formData.shippingCountries.forEach(country => {
-          formDataPayload.append('shippingCountries[]', country);
-        });
+      // Addresses
+      if (formData.residentialAddress && formData.residentialAddress.addressLine1) {
+        formDataPayload.append('residentialAddress', JSON.stringify(formData.residentialAddress));
       }
-      
-      // Optional fields
-      if (formData.companyRegistrationNumber) {
-        formDataPayload.append('companyRegistrationNumber', formData.companyRegistrationNumber);
-      }
-      if (formData.routingNumber) {
-        formDataPayload.append('routingNumber', formData.routingNumber);
-      }
-      if (formData.bankCountry) {
-        formDataPayload.append('bankCountry', formData.bankCountry);
+      if (formData.businessAddress && formData.businessAddress.addressLine1) {
+        formDataPayload.append('businessAddress', JSON.stringify(formData.businessAddress));
       }
 
-      // Add document files with correct field names
+      // Add document files
       const documentMapping = {
         'governmentId': 'governmentId',
         'proofOfResidence': 'proofOfResidence', 
@@ -167,25 +247,41 @@ if (formData.subscriptionType === 'professional') {
         }
       }
 
-      console.log('Sending form data to backend...'); // Debug log
-
       const response = await fetch(endpoint, {
         method: 'POST',
+        credentials: 'include',
         body: formDataPayload
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
+        throw new Error(data.message || 'Seller profile creation failed');
       }
 
-      toast.success('Seller registration successful! Please check your email to verify your account.');
-      setTimeout(() => router.push('/verify'), 2000);
+      setSellerCreated(true);
+      setSellerId(data.sellerId);
+      
+      // If professional subscription, go to payment step
+      if (formData.subscriptionType === 'professional') {
+        localStorage.setItem('pendingSellerId', data.sellerId);
+        sessionStorage.setItem('pendingSellerId', data.sellerId);
+        
+        console.log('Stored seller ID for payment:', data.sellerId);
+        
+        setCurrentStep(6);
+        toast.success('Account created! Now complete your ₦25,000 subscription payment.');
+      } else {
+        // UPDATED: For free accounts, redirect to AwaitVerification instead of dashboard
+        toast.success('Seller profile created successfully! Your documents will be reviewed within 2-3 business days.');
+        setTimeout(() => {
+          router.push('/await-verification?type=free');
+        }, 2000);
+      }
       
     } catch (error) {
-      console.error('Registration error:', error);
-      toast.error(error.message || 'Registration failed. Please try again.');
+      console.error('Seller profile creation error:', error);
+      toast.error(error.message || 'Profile creation failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -230,17 +326,50 @@ if (formData.subscriptionType === 'professional') {
       case 3:
         return <StoreSetupStep {...stepProps} />;
       case 4:
-  return (
-    <BankingInfoStep
-      {...stepProps}
-      countries={countries}
-      billingAddressSuggestions={billingAddressSuggestions}
-      showBillingAddressSuggestions={showBillingAddressSuggestions}
-      handleAddressInput={handleAddressInput}
-      selectAddress={selectAddress}
-      setShowBillingAddressSuggestions={setShowBillingAddressSuggestions}
-    />
-  );
+        return (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Subscription Information</h2>
+            
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h3 className="text-lg font-medium text-amber-800 mb-2">
+                Professional Subscription - ₦25,000/month
+              </h3>
+              <p className="text-sm text-amber-700 mb-4">
+                Payment will be processed after your account is created. This ensures you don&apos;t lose your registration data.
+              </p>
+              
+              <div className="bg-white border border-amber-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">Professional Features Include:</h4>
+                <ul className="text-xs text-gray-600 space-y-1">
+                  <li className="flex items-center">
+                    <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Advanced analytics and reporting
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Priority customer support
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Bulk product management tools
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Enhanced store customization
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        );
       case 5:
         return (
           <DocumentsStep
@@ -252,24 +381,80 @@ if (formData.subscriptionType === 'professional') {
           />
         );
       case 6:
-        return <SecurityStep {...stepProps} onSubmit={handleSubmit} loading={loading} />;
+        // Payment step for professional users (after account creation)
+        if (formData.subscriptionType === 'professional' && sellerCreated) {
+          return (
+            <ProfessionalPaymentStep
+              sellerId={sellerId}
+              formData={formData}
+              paymentProcessing={paymentProcessing}
+              paymentCompleted={paymentCompleted}
+              onPaymentSuccess={() => {
+                toast.success('Payment successful! Your professional subscription is now active.');
+                // UPDATED: Redirect to AwaitVerification instead of dashboard
+                setTimeout(() => {
+                  router.push(`/await-verification?type=professional&amount=${encodeURIComponent(paymentAmount || '₦25,000')}`);
+                }, 2000);
+              }}
+            />
+          );
+        } else {
+          return <SecurityStep {...stepProps} onSubmit={handleCreateSellerAccount} loading={loading} />;
+        }
       default:
         return null;
     }
   };
 
+  // Update step indicator to show correct steps
+  const getStepName = (step) => {
+    const stepNames = {
+      1: 'Personal Info',
+      2: 'Business Details', 
+      3: 'Store Setup',
+      4: 'Subscription',
+      5: 'Documents',
+      6: formData.subscriptionType === 'professional' && sellerCreated ? 'Payment' : 'Review'
+    };
+    
+    // For free users, adjust step names
+    if (formData.subscriptionType === 'free') {
+      return {
+        1: 'Personal Info',
+        2: 'Business Details',
+        3: 'Store Setup', 
+        5: 'Documents',
+        6: 'Review'
+      }[step];
+    }
+    
+    return stepNames[step];
+  };
+
+  if (paymentProcessing && !paymentCompleted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Processing Payment</h2>
+          <p className="text-gray-600 text-sm">Please wait while we verify your payment and activate your subscription...</p>
+        </div>
+        <ToastContainer position="top-right" />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col items-center justify-center px-4 py-8">
-         <Image
-                  src="https://res.cloudinary.com/khalifrex/image/upload/v1756240354/ChatGPT_Image_Aug_26_2025_09_26_58_PM_blhroo.png"
-                  alt="Khalifrex Logo"
-                  width={250}
-                  height={60}
-                  priority
-                  className="object-contain"
-                />
-
+        <Image
+          src="https://res.cloudinary.com/khalifrex/image/upload/v1756240354/ChatGPT_Image_Aug_26_2025_09_26_58_PM_blhroo.png"
+          alt="Khalifrex Logo"
+          width={250}
+          height={60}
+          priority
+          className="object-contain"
+        />
         
         <ToastContainer position="top-right" />
         
@@ -280,7 +465,47 @@ if (formData.subscriptionType === 'professional') {
             <p className="text-blue-100 text-center mt-1 text-sm">Start selling your products today</p>
           </div>
 
-          <StepIndicator currentStep={currentStep} />
+          {/* Custom Step Indicator */}
+          <div className="px-8 py-4 bg-gray-50 border-b">
+            <div className="flex items-center justify-between">
+              {Array.from({ length: totalSteps }, (_, i) => {
+                const stepNumber = i + 1;
+                const isActive = stepNumber === currentStep;
+                const isCompleted = stepNumber < currentStep;
+                const stepName = getStepName(stepNumber);
+                
+                // Skip rendering step 4 for free users
+                if (formData.subscriptionType === 'free' && stepNumber === 4) {
+                  return null;
+                }
+                
+                return (
+                  <div key={stepNumber} className="flex items-center">
+                    <div className={`flex flex-col items-center ${stepNumber < totalSteps ? 'flex-1' : ''}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                        isCompleted 
+                          ? 'bg-green-500 text-white' 
+                          : isActive 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-200 text-gray-400'
+                      }`}>
+                        {isCompleted ? '✓' : stepNumber}
+                      </div>
+                      <span className={`text-xs mt-1 text-center ${isActive ? 'text-blue-600 font-medium' : 'text-gray-400'}`}>
+                        {stepName}
+                      </span>
+                    </div>
+                    {stepNumber < totalSteps && formData.subscriptionType === 'professional' && (
+                      <div className={`h-0.5 flex-1 mx-2 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
+                    )}
+                    {stepNumber < totalSteps - 1 && formData.subscriptionType === 'free' && stepNumber !== 3 && (
+                      <div className={`h-0.5 flex-1 mx-2 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Form Content */}
           <div className="px-8 py-6">
@@ -299,7 +524,7 @@ if (formData.subscriptionType === 'professional') {
               )}
               
               <div className="flex-1 flex justify-end">
-                {currentStep < 6 ? (
+                {currentStep < totalSteps ? (
                   <button
                     type="button"
                     onClick={handleNextStep}
@@ -313,54 +538,34 @@ if (formData.subscriptionType === 'professional') {
                     Next Step
                   </button>
                 ) : (
-                  <button
-                    type="submit"
-                    onClick={handleSubmit}
-                    disabled={loading}
-                    className="px-8 py-3 text-white rounded-lg font-medium hover:opacity-90 focus:ring-4 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                    style={{ 
-                      backgroundColor: '#0C7FD2',
-                      '--tw-ring-color': '#0C7FD2',
-                      '--tw-ring-opacity': '0.3'
-                    }}
-                  >
-                    {loading ? (
-                      <div className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Creating Account...
-                      </div>
-                    ) : (
-                      'Create Seller Account'
-                    )}
-                  </button>
+                  !sellerCreated && (
+                    <button
+                      type="submit"
+                      onClick={handleCreateSellerAccount}
+                      disabled={loading}
+                      className="px-8 py-3 text-white rounded-lg font-medium hover:opacity-90 focus:ring-4 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                      style={{ 
+                        backgroundColor: '#0C7FD2',
+                        '--tw-ring-color': '#0C7FD2',
+                        '--tw-ring-opacity': '0.3'
+                      }}
+                    >
+                      {loading ? (
+                        <div className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Creating Account...
+                        </div>
+                      ) : (
+                        'Create Seller Account'
+                      )}
+                    </button>
+                  )
                 )}
               </div>
             </div>
-
-            {/* Terms and Login Link */}
-            {currentStep === 6 && (
-              <div className="text-center pt-4 space-y-2 border-t border-gray-200">
-                <p className="text-xs text-gray-500">
-                  By creating an account, you agree to our{' '}
-                  <Link href="/terms" className="hover:underline" style={{ color: '#0C7FD2' }}>Terms of Service</Link>
-                  {' '}and{' '}
-                  <Link href="/privacy" className="hover:underline" style={{ color: '#0C7FD2' }}>Privacy Policy</Link>
-                </p>
-                <p className="text-sm text-gray-600">
-                  Already have an account?{' '}
-                  <Link
-                    href="/login"
-                    className="hover:underline font-medium"
-                    style={{ color: '#0C7FD2' }}
-                  >
-                    Sign in here
-                  </Link>
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>

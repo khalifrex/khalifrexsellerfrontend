@@ -54,8 +54,8 @@ export const Navbar = () => {
             <a href="/signin" className="text-[#127ACA] hover:text-[#0f6aa3] px-4 py-2 text-sm font-medium transition-colors">
               Sign In
             </a>
-            <a href="/become-seller" className="bg-[#127ACA] text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-[#0f6aa3] transition-colors">
-              Start Selling
+            <a href="/signup" className="bg-[#127ACA] text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-[#0f6aa3] transition-colors">
+              Sign Up Now
             </a>
           </div>
 

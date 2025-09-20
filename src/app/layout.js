@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "Khalifrex Seller",
-  description: "Sell on Khalifrex - Nigerias Fastest Growing Marketplace",
+  description: "Sell on Khalifrex - Fastest Growing Marketplace",
 };
 
 export default function RootLayout({ children }) {

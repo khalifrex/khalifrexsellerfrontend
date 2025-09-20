@@ -14,20 +14,22 @@ import {
   Settings,
   HelpCircle,
   LogOut,
+  Truck,
 } from "lucide-react";
 
 const menuLinks = [
-  { href: "/dashboard/seller", label: "Home", icon: <LayoutDashboard size={18} /> },
+  { href: "/dashboard", label: "Home", icon: <LayoutDashboard size={18} /> },
   {
     label: "Products",
     icon: <Package size={18} />,
     children: [
-      { href: "/dashboard/seller/inventory", label: "All Products" },
-      { href: "/dashboard/seller/create", label: "Add Product" },
+      { href: "/dashboard/inventory", label: "All Products" },
+      { href: "/dashboard/create", label: "Add Product" },
     ],
   },
-  { href: "/dashboard/seller/orders", label: "My Orders", icon: <ShoppingBag size={18} /> },
-  { href: "/dashboard/seller/analytics", label: "Analytics", icon: <BarChart2 size={18} /> },
+  { href: "/dashboard/orders", label: "My Orders", icon: <ShoppingBag size={18} /> },
+  { href: "/dashboard/analytics", label: "Analytics", icon: <BarChart2 size={18} /> },
+  { href: "/dashboard/shipping-zones", label: "Shipping Zones", icon: <Truck size={18} /> },
 ];
 
 export default function HamburgerMenu({ pathname, productDropdown, setProductDropdown, setMenuOpen }) {
@@ -98,9 +100,9 @@ export default function HamburgerMenu({ pathname, productDropdown, setProductDro
           <h3 className="text-xs uppercase font-semibold text-gray-500 mt-6 mb-2">General</h3>
           {/* Other General Links */}
           <Link
-            href="/dashboard/seller/settings"
+            href="/dashboard/settings"
             className={`flex items-center gap-3 text-base font-medium px-4 py-3 rounded ${
-              pathname === "/dashboard/seller/settings"
+              pathname === "/dashboard/settings"
                 ? "text-[#1888CA]"
                 : "text-gray-800 hover:bg-gray-100"
             }`}
@@ -111,9 +113,9 @@ export default function HamburgerMenu({ pathname, productDropdown, setProductDro
           </Link>
 
           <Link
-            href="/dashboard/seller/help"
+            href="/dashboard/help"
             className={`flex items-center gap-3 text-base font-medium px-4 py-3 rounded ${
-              pathname === "/dashboard/seller/help"
+              pathname === "/dashboard/help"
                 ? "text-[#1888CA]"
                 : "text-gray-800 hover:bg-gray-100"
             }`}

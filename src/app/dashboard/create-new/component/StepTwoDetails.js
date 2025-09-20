@@ -1,10 +1,12 @@
 "use client";
 
 import Skeleton from "../../../../components/sellerDashboardComponents/Skeleton";
-import { PlusCircle, Trash2, Plus, X, Upload, Lock, Minus } from "lucide-react";
+import { PlusCircle, Trash2, Plus, X, Upload, Lock, Minus, Package, DollarSign, Truck } from "lucide-react";
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import Image from "next/image";
+import ShippingConfiguration from "./ShippingConfiguration";
+import { useShippingZones } from "@/hooks/useShippingZones";
 
 export default function StepTwoDetails({
   form,
@@ -24,6 +26,89 @@ export default function StepTwoDetails({
   const [themeValues, setThemeValues] = useState({});
   const [combinations, setCombinations] = useState([]);
   const [combinationData, setCombinationData] = useState({});
+  const [expandedVariant, setExpandedVariant] = useState(null);
+  const [showZoneSelector, setShowZoneSelector] = useState(false);
+  const [currentVariantIndex, setCurrentVariantIndex] = useState(null);
+
+  // Shipping zones hook
+  const {
+    shippingZones,
+    isLoadingZones,
+    selectedZones,
+    setSelectedZones,
+    fetchShippingZones,
+    handleZoneSelection,
+    handleSelectAllZones,
+    handleClearAllZones,
+    applyZonesToOffer,
+  } = useShippingZones();
+
+  // Initialize shipping zones
+  useEffect(() => {
+    if (hasVariants) {
+      fetchShippingZones();
+    }
+  }, [hasVariants]);
+
+  // Open zone selector for specific variant
+  const openZoneSelector = (variantIndex) => {
+    setCurrentVariantIndex(variantIndex);
+    setShowZoneSelector(true);
+    
+    const currentVariant = Object.values(combinationData)[variantIndex];
+    if (currentVariant?.shippingZoneIds) {
+      setSelectedZones(new Set(currentVariant.shippingZoneIds));
+    } else if (currentVariant?.useDefaultZones) {
+      handleSelectAllZones();
+    } else {
+      setSelectedZones(new Set());
+    }
+  };
+
+  // Apply zones to variant
+  const applyZonesToVariant = (variantIndex) => {
+    const comboKeys = Object.keys(combinationData);
+    const comboKey = comboKeys[variantIndex];
+    
+    if (!comboKey) return;
+
+    const selectedZoneObjects = shippingZones.filter(zone =>
+      selectedZones.has(zone._id)
+    );
+
+    setCombinationData(prev => ({
+      ...prev,
+      [comboKey]: {
+        ...prev[comboKey],
+        useDefaultZones: selectedZones.size === shippingZones.length,
+        selectedShippingZones: selectedZoneObjects,
+        shippingZoneIds: Array.from(selectedZones),
+      }
+    }));
+
+    setShowZoneSelector(false);
+    setCurrentVariantIndex(null);
+    setSelectedZones(new Set());
+  };
+
+  // Handle pickup changes for variants
+  const handleVariantPickupChange = (variantIndex, field, value) => {
+    const comboKeys = Object.keys(combinationData);
+    const comboKey = comboKeys[variantIndex];
+    
+    if (!comboKey) return;
+
+    setCombinationData(prev => ({
+      ...prev,
+      [comboKey]: {
+        ...prev[comboKey],
+        pickup: {
+          ...prev[comboKey].pickup,
+          [field]: value
+        }
+      }
+    }));
+  };
 
   // Fetch variation themes when category is selected
   useEffect(() => {
@@ -76,7 +161,6 @@ export default function StepTwoDetails({
       return;
     }
 
-    // Generate all combinations
     const generateCombinations = (themes, values) => {
       if (themes.length === 0) return [{}];
       
@@ -98,26 +182,40 @@ export default function StepTwoDetails({
     const newCombinations = generateCombinations(selectedThemes, themeValues);
     setCombinations(newCombinations);
 
-    // Initialize combination data for new combinations
     const newCombinationData = {};
 
     newCombinations.forEach((combination, index) => {
       const key = `combo_${index}`;
       newCombinationData[key] = combinationData[key] || {
-          combination,
-          image: null,
-          imagePreview: null,
-          sku: '',
-          ean: '',
-          upc: '',
-          modelNumber: '',
-          condition: 'new',
-          price: '',
-          stock: ''
+        combination,
+        image: null,
+        imagePreview: null,
+        sku: '',
+        ean: '',
+        upc: '',
+        modelNumber: '',
+        condition: 'new',
+        price: '',
+        stock: '',
+        // Shipping configuration
+        useDefaultZones: false,
+        selectedShippingZones: [],
+        shippingZoneIds: [],
+        pickup: {
+          available: false,
+          address: {
+            street: '',
+            city: '',
+            state: '',
+            postcode: '',
+            country: ''
+          },
+          instructions: '',
+          hours: {}
+        }
       };
     });
 
-    // Remove data for combinations that no longer exist
     const validKeys = newCombinations.map((_, index) => `combo_${index}`);
     Object.keys(newCombinationData).forEach(key => {
       if (!validKeys.includes(key)) {
@@ -134,7 +232,6 @@ export default function StepTwoDetails({
     setHasVariants(hasVariantsValue);
     
     if (!hasVariantsValue) {
-      // Clear variants and variation theme when disabled
       setVariantData([]);
       handleInput("variationTheme", []);
       setThemeValues({});
@@ -147,7 +244,6 @@ export default function StepTwoDetails({
   const handleVariationThemeChange = (selectedThemes) => {
     handleInput("variationTheme", selectedThemes);
     
-    // Clear theme values for unselected themes
     const newThemeValues = { ...themeValues };
     Object.keys(newThemeValues).forEach(theme => {
       if (!selectedThemes.includes(theme)) {
@@ -230,7 +326,6 @@ export default function StepTwoDetails({
       
       if (!comboData) return null;
 
-      // Generate variant name from brand, product name, and combination
       const combinationString = Object.values(combination).join(' ');
       const variantName = `${form.brand || ''} ${form.itemName || ''} ${combinationString}`.trim();
 
@@ -245,7 +340,17 @@ export default function StepTwoDetails({
         price: comboData.price || '',
         stock: comboData.stock || '',
         image: comboData.image,
-        imagePreview: comboData.imagePreview
+        imagePreview: comboData.imagePreview,
+        // Include shipping configuration
+        useDefaultZones: comboData.useDefaultZones || false,
+        selectedShippingZones: comboData.selectedShippingZones || [],
+        shippingZoneIds: comboData.shippingZoneIds || [],
+        pickup: comboData.pickup || {
+          available: false,
+          address: {},
+          instructions: '',
+          hours: {}
+        }
       };
     }).filter(Boolean);
 
@@ -283,7 +388,7 @@ export default function StepTwoDetails({
           )}
         </div>
 
-        {/* Show available variation themes for selected category */}
+        {/* Show available variation themes */}
         {selectedCategory && categoryVariationThemes.length > 0 && (
           <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <h4 className="text-sm font-medium text-blue-900 mb-2">
@@ -428,7 +533,6 @@ export default function StepTwoDetails({
             <div key={theme} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <h4 className="font-medium text-gray-800 mb-3">{theme}</h4>
               
-              {/* Add new value */}
               <div className="flex gap-2 mb-3">
                 <input
                   type="text"
@@ -454,7 +558,6 @@ export default function StepTwoDetails({
                 </button>
               </div>
 
-              {/* Display current values */}
               <div className="flex flex-wrap gap-2">
                 {(themeValues[theme] || []).map((value, index) => (
                   <div key={index} className="bg-white border border-gray-300 rounded px-3 py-1 flex items-center gap-2">
@@ -478,199 +581,604 @@ export default function StepTwoDetails({
         </div>
       )}
 
-      {/* Combinations Table */}
+      {/* New Card-Based Combinations Layout */}
       {hasVariants && combinations.length > 0 && (
         <div className="space-y-6 mt-8">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium text-gray-800 border-b pb-2 flex-1">
-              Product Combinations ({combinations.length})
+              Product Variants ({combinations.length})
             </h3>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="text-sm font-medium text-blue-900 mb-2">Instructions:</h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Each row represents a unique combination of your selected variation values</li>
-              <li>• Fill in the required information for each combination</li>
-              <li>• Product names will be auto-generated based on your brand, product name, and combination</li>
-              <li>• Each combination will become a separate child variant under the main product catalog</li>
+              <li>• Each card represents a unique variant with its own pricing and shipping</li>
+              <li>• Fill in all required information for each variant</li>
+              <li>• Configure shipping zones and pickup options for each variant</li>
+              <li>• Product names are auto-generated based on combinations</li>
             </ul>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white border border-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                    Combination
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                    Image
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                    SKU *
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                    Identifiers
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                    Condition *
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                    Price ($) *
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                    Stock *
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {combinations.map((combination, index) => {
-                  const comboKey = `combo_${index}`;
-                  const comboData = combinationData[comboKey] || {};
-                  
-                  return (
-                    <tr key={comboKey} className="hover:bg-gray-50">
-                      {/* Combination */}
-                      <td className="px-4 py-4 border-b">
-                        <div className="text-sm font-medium text-gray-900">
-                          {generateCombinationName(combination)}
+          <div className="grid gap-6">
+            {combinations.map((combination, index) => {
+              const comboKey = `combo_${index}`;
+              const comboData = combinationData[comboKey] || {};
+              const isExpanded = expandedVariant === index;
+              
+              return (
+                <div key={comboKey} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Variant Header */}
+                  <div className="bg-gray-50 px-6 py-4 border-b">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Package className="w-5 h-5 text-blue-600" />
+                        <div>
+                          <h4 className="font-semibold text-gray-900">
+                            {generateCombinationName(combination)}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            Variant {index + 1} of {combinations.length}
+                          </p>
                         </div>
-                      </td>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedVariant(isExpanded ? null : index)}
+                        className={`px-4 py-2 rounded transition-colors ${
+                          isExpanded 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-white text-blue-600 border border-blue-600 hover:bg-blue-50'
+                        }`}
+                      >
+                        {isExpanded ? 'Collapse' : 'Configure'}
+                      </button>
+                    </div>
 
-                      {/* Image */}
-                      <td className="px-4 py-4 border-b">
-                        <div className="flex items-center gap-2">
+                    {/* Quick Summary */}
+                    {!isExpanded && (
+                      <div className="mt-3 grid grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">SKU:</span>
+                          <span className="ml-1 text-gray-900">{comboData.sku || 'Not set'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Price:</span>
+                          <span className="ml-1 text-gray-900">${comboData.price || '0.00'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Stock:</span>
+                          <span className="ml-1 text-gray-900">{comboData.stock || '0'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Shipping:</span>
+                          <span className="ml-1 text-gray-900">
+                            {comboData.selectedShippingZones?.length > 0 
+                              ? `${comboData.selectedShippingZones.length} zones` 
+                              : 'Not configured'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="p-6 space-y-6">
+                      {/* Image Upload */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Variant Image
+                        </label>
+                        <div className="flex items-center gap-4">
                           {comboData.imagePreview ? (
                             <div className="relative">
                               <Image
                                 src={comboData.imagePreview}
-                                alt="Combination image"
-                                width={60}
-                                height={60}
+                                alt="Variant image"
+                                width={100}
+                                height={100}
                                 className="rounded border object-cover"
                               />
                               <button
                                 type="button"
-                                onClick={() => handleCombinationChange(comboKey, 'image', null)}
-                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                                onClick={() => {
+                                  setCombinationData(prev => ({
+                                    ...prev,
+                                    [comboKey]: {
+                                      ...prev[comboKey],
+                                      image: null,
+                                      imagePreview: null
+                                    }
+                                  }));
+                                }}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
                               >
                                 ×
                               </button>
                             </div>
                           ) : (
-                            <div className="w-16 h-16 bg-gray-100 border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
-                              <Upload size={20} className="text-gray-400" />
+                            <div className="w-24 h-24 bg-gray-100 border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
+                              <Upload size={24} className="text-gray-400" />
                             </div>
                           )}
                           <input
                             type="file"
                             accept="image/*"
                             onChange={(e) => handleCombinationImage(comboKey, e.target.files[0])}
-                            className="text-xs"
+                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                           />
                         </div>
-                      </td>
+                      </div>
 
-                      {/* SKU */}
-                      <td className="px-4 py-4 border-b">
-                        <input
-                          type="text"
-                          value={comboData.sku || ''}
-                          onChange={(e) => handleCombinationChange(comboKey, 'sku', e.target.value)}
-                          placeholder="Required"
-                          className={`w-full border ${formErrors[`${comboKey}_sku`] ? 'border-red-500' : 'border-gray-300'} rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500`}
-                        />
-                        {formErrors[`${comboKey}_sku`] && (
-                          <p className="text-red-500 text-xs mt-1">{formErrors[`${comboKey}_sku`]}</p>
-                        )}
-                      </td>
+                      {/* Basic Information */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Left Column */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              SKU <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={comboData.sku || ''}
+                              onChange={(e) => handleCombinationChange(comboKey, 'sku', e.target.value)}
+                              placeholder="Enter unique SKU"
+                              className={`w-full border ${formErrors[`${comboKey}_sku`] ? 'border-red-500' : 'border-gray-300'} rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                            />
+                            {formErrors[`${comboKey}_sku`] && (
+                              <p className="text-red-500 text-xs mt-1">{formErrors[`${comboKey}_sku`]}</p>
+                            )}
+                          </div>
 
-                      {/* Identifiers */}
-                      <td className="px-4 py-4 border-b">
-                        <div className="space-y-2">
-                          <input
-                            type="text"
-                            value={comboData.ean || ''}
-                            onChange={(e) => handleCombinationChange(comboKey, 'ean', e.target.value)}
-                            placeholder="EAN (13 digits)"
-                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                          <input
-                            type="text"
-                            value={comboData.upc || ''}
-                            onChange={(e) => handleCombinationChange(comboKey, 'upc', e.target.value)}
-                            placeholder="UPC (12 digits)"
-                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                          <input
-                            type="text"
-                            value={comboData.modelNumber || ''}
-                            onChange={(e) => handleCombinationChange(comboKey, 'modelNumber', e.target.value)}
-                            placeholder="Model Number"
-                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              EAN (13 digits)
+                            </label>
+                            <input
+                              type="text"
+                              value={comboData.ean || ''}
+                              onChange={(e) => handleCombinationChange(comboKey, 'ean', e.target.value)}
+                              placeholder="Enter EAN barcode"
+                              className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              UPC (12 digits)
+                            </label>
+                            <input
+                              type="text"
+                              value={comboData.upc || ''}
+                              onChange={(e) => handleCombinationChange(comboKey, 'upc', e.target.value)}
+                              placeholder="Enter UPC barcode"
+                              className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
                         </div>
-                      </td>
 
-                      {/* Condition */}
-                      <td className="px-4 py-4 border-b">
-                        <select
-                          value={comboData.condition || 'new'}
-                          onChange={(e) => handleCombinationChange(comboKey, 'condition', e.target.value)}
-                          className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="new">New</option>
-                          <option value="used">Used</option>
-                          <option value="refurbished">Refurbished</option>
-                        </select>
-                      </td>
+                        {/* Right Column */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Model Number
+                            </label>
+                            <input
+                              type="text"
+                              value={comboData.modelNumber || ''}
+                              onChange={(e) => handleCombinationChange(comboKey, 'modelNumber', e.target.value)}
+                              placeholder="Enter model number"
+                              className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
 
-                      {/* Price */}
-                      <td className="px-4 py-4 border-b">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={comboData.price || ''}
-                          onChange={(e) => handleCombinationChange(comboKey, 'price', e.target.value)}
-                          placeholder="0.00"
-                          className={`w-full border ${formErrors[`${comboKey}_price`] ? 'border-red-500' : 'border-gray-300'} rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500`}
-                        />
-                        {formErrors[`${comboKey}_price`] && (
-                          <p className="text-red-500 text-xs mt-1">{formErrors[`${comboKey}_price`]}</p>
-                        )}
-                      </td>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Condition <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              value={comboData.condition || 'new'}
+                              onChange={(e) => handleCombinationChange(comboKey, 'condition', e.target.value)}
+                              className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="new">New</option>
+                              <option value="used">Used</option>
+                              <option value="refurbished">Refurbished</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
 
-                      {/* Stock */}
-                      <td className="px-4 py-4 border-b">
-                        <input
-                          type="number"
-                          min="0"
-                          value={comboData.stock || ''}
-                          onChange={(e) => handleCombinationChange(comboKey, 'stock', e.target.value)}
-                          placeholder="0"
-                          className={`w-full border ${formErrors[`${comboKey}_stock`] ? 'border-red-500' : 'border-gray-300'} rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500`}
-                        />
-                        {formErrors[`${comboKey}_stock`] && (
-                          <p className="text-red-500 text-xs mt-1">{formErrors[`${comboKey}_stock`]}</p>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      {/* Pricing and Stock */}
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <DollarSign className="w-5 h-5 text-green-600" />
+                          <h5 className="font-medium text-green-900">Pricing & Inventory</h5>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Price ($) <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={comboData.price || ''}
+                              onChange={(e) => handleCombinationChange(comboKey, 'price', e.target.value)}
+                              placeholder="0.00"
+                              className={`w-full border ${formErrors[`${comboKey}_price`] ? 'border-red-500' : 'border-gray-300'} rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                            />
+                            {formErrors[`${comboKey}_price`] && (
+                              <p className="text-red-500 text-xs mt-1">{formErrors[`${comboKey}_price`]}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Stock Quantity <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={comboData.stock || ''}
+                              onChange={(e) => handleCombinationChange(comboKey, 'stock', e.target.value)}
+                              placeholder="0"
+                              className={`w-full border ${formErrors[`${comboKey}_stock`] ? 'border-red-500' : 'border-gray-300'} rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                            />
+                            {formErrors[`${comboKey}_stock`] && (
+                              <p className="text-red-500 text-xs mt-1">{formErrors[`${comboKey}_stock`]}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Shipping Configuration */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Truck className="w-5 h-5 text-blue-600" />
+                          <h5 className="font-medium text-blue-900">Shipping Configuration</h5>
+                          <span className="text-red-500">*</span>
+                        </div>
+
+                        {/* Shipping Zones Display */}
+                        <div className="mb-4">
+                          {comboData.selectedShippingZones && comboData.selectedShippingZones.length > 0 ? (
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-sm font-medium text-gray-700">
+                                  Selected Zones ({comboData.selectedShippingZones.length})
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => openZoneSelector(index)}
+                                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                >
+                                  Modify Zones
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                                {comboData.selectedShippingZones.map((zone) => {
+                                  const getZoneTypeInfo = (zoneType) => {
+                                    const types = {
+                                      worldwide: { label: 'Worldwide', color: 'bg-purple-100 text-purple-800', icon: '🌍' },
+                                      country: { label: 'Country', color: 'bg-blue-100 text-blue-800', icon: '🏛️' },
+                                      state: { label: 'State/Region', color: 'bg-green-100 text-green-800', icon: '🗺️' },
+                                      city: { label: 'City', color: 'bg-orange-100 text-orange-800', icon: '🏙️' },
+                                      postcode: { label: 'Postcode', color: 'bg-red-100 text-red-800', icon: '📮' },
+                                      street: { label: 'Street', color: 'bg-gray-100 text-gray-800', icon: '🏠' }
+                                    };
+                                    return types[zoneType] || types.country;
+                                  };
+
+                                  const zoneInfo = getZoneTypeInfo(zone.zoneType);
+                                  return (
+                                    <div key={zone._id} className="bg-white border border-gray-200 rounded p-2">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm">{zoneInfo.icon}</span>
+                                          <div>
+                                            <div className="text-xs font-medium text-gray-900 truncate max-w-24">
+                                              {zone.name || `${zone.city || zone.state || zone.country}`}
+                                            </div>
+                                            <div className={`text-xs px-1 py-0.5 rounded ${zoneInfo.color}`}>
+                                              {zoneInfo.label}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-xs font-medium text-gray-900">
+                                            ${zone.shippingCost || '0.00'}
+                                          </div>
+                                          <div className="text-xs text-gray-500">
+                                            {zone.estimatedDeliveryDays?.min || 2}-{zone.estimatedDeliveryDays?.max || 7}d
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-6 border-2 border-dashed border-gray-300 rounded-lg">
+                              <Truck className="mx-auto mb-2 text-gray-400" size={24} />
+                              <p className="text-gray-600 text-sm font-medium">No shipping zones selected</p>
+                              <p className="text-xs text-gray-500 mb-3">This variant needs shipping configuration</p>
+                              <button
+                                type="button"
+                                onClick={() => openZoneSelector(index)}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                              >
+                                <Plus size={14} />
+                                Select Shipping Zones
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Pickup Configuration */}
+                        <div className="mt-4 border-t pt-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={comboData.pickup?.available || false}
+                                onChange={(e) => handleVariantPickupChange(index, 'available', e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm font-medium text-gray-700">Enable Local Pickup</span>
+                            </label>
+                          </div>
+
+                          {comboData.pickup?.available && (
+                            <div className="space-y-3 bg-white border border-gray-200 rounded p-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <input
+                                  type="text"
+                                  value={comboData.pickup?.address?.street || ''}
+                                  onChange={(e) => handleVariantPickupChange(index, 'address', {
+                                    ...comboData.pickup.address,
+                                    street: e.target.value
+                                  })}
+                                  placeholder="Street Address"
+                                  className={`w-full border ${formErrors[`${comboKey}_pickup_address`] ? 'border-red-500' : 'border-gray-300'} rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500`}
+                                />
+                                <input
+                                  type="text"
+                                  value={comboData.pickup?.address?.city || ''}
+                                  onChange={(e) => handleVariantPickupChange(index, 'address', {
+                                    ...comboData.pickup.address,
+                                    city: e.target.value
+                                  })}
+                                  placeholder="City"
+                                  className={`w-full border ${formErrors[`${comboKey}_pickup_city`] ? 'border-red-500' : 'border-gray-300'} rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500`}
+                                />
+                              </div>
+                              <textarea
+                                value={comboData.pickup?.instructions || ''}
+                                onChange={(e) => handleVariantPickupChange(index, 'instructions', e.target.value)}
+                                placeholder="Pickup instructions (optional)"
+                                rows={2}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Validation Status */}
+                      <div className={`border rounded p-3 ${
+                        comboData.sku && comboData.price && comboData.stock && 
+                        (comboData.selectedShippingZones?.length > 0 || comboData.pickup?.available)
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-yellow-50 border-yellow-200'
+                      }`}>
+                        <div className="flex items-center gap-2 text-sm">
+                          {comboData.sku && comboData.price && comboData.stock && 
+                           (comboData.selectedShippingZones?.length > 0 || comboData.pickup?.available) ? (
+                            <>
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-green-800 font-medium">Variant Complete</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                              <span className="text-yellow-800 font-medium">
+                                Missing: {[
+                                  !comboData.sku && 'SKU',
+                                  !comboData.price && 'Price',
+                                  !comboData.stock && 'Stock',
+                                  !comboData.selectedShippingZones?.length && !comboData.pickup?.available && 'Shipping'
+                                ].filter(Boolean).join(', ')}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Summary */}
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h4 className="font-medium text-green-900 mb-2">Combinations Summary</h4>
-            <p className="text-sm text-green-800">
-              {combinations.length} combination{combinations.length !== 1 ? 's' : ''} will be created as child variants.
-            </p>
-            <div className="text-xs text-green-700 mt-1">
-              Total stock across all combinations: {Object.values(combinationData).reduce((sum, combo) => sum + (parseInt(combo.stock) || 0), 0)} units
+            <h4 className="font-medium text-green-900 mb-2">Variants Summary</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <div className="font-medium text-green-900">{combinations.length}</div>
+                <div className="text-green-700">Total Variants</div>
+              </div>
+              <div>
+                <div className="font-medium text-green-900">
+                  {Object.values(combinationData).filter(combo => 
+                    combo.sku && combo.price && combo.stock && 
+                    (combo.selectedShippingZones?.length > 0 || combo.pickup?.available)
+                  ).length}
+                </div>
+                <div className="text-green-700">Configured</div>
+              </div>
+              <div>
+                <div className="font-medium text-green-900">
+                  {Object.values(combinationData).reduce((sum, combo) => sum + (parseInt(combo.stock) || 0), 0)}
+                </div>
+                <div className="text-green-700">Total Stock</div>
+              </div>
+              <div>
+                <div className="font-medium text-green-900">
+                  ${Object.values(combinationData)
+                    .filter(combo => combo.price)
+                    .reduce((sum, combo) => sum + parseFloat(combo.price || 0), 0)
+                    .toFixed(2)}
+                </div>
+                <div className="text-green-700">Total Value</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Zone Selector Modal */}
+      {showZoneSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-medium text-gray-900">Select Shipping Zones</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowZoneSelector(false);
+                  setCurrentVariantIndex(null);
+                  setSelectedZones(new Set());
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-4 border-b bg-gray-50">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">
+                  {selectedZones.size} of {shippingZones.length} zones selected
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllZones}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearAllZones}
+                    className="text-sm text-red-600 hover:text-red-800"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 max-h-96 overflow-y-auto">
+              {isLoadingZones ? (
+                <div className="text-center py-8">Loading shipping zones...</div>
+              ) : shippingZones.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No shipping zones available. Please create zones first.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {shippingZones.map((zone) => {
+                    const getZoneTypeInfo = (zoneType) => {
+                      const types = {
+                        worldwide: { label: 'Worldwide', color: 'bg-purple-100 text-purple-800', icon: '🌍' },
+                        country: { label: 'Country', color: 'bg-blue-100 text-blue-800', icon: '🏛️' },
+                        state: { label: 'State/Region', color: 'bg-green-100 text-green-800', icon: '🗺️' },
+                        city: { label: 'City', color: 'bg-orange-100 text-orange-800', icon: '🏙️' },
+                        postcode: { label: 'Postcode', color: 'bg-red-100 text-red-800', icon: '📮' },
+                        street: { label: 'Street', color: 'bg-gray-100 text-gray-800', icon: '🏠' }
+                      };
+                      return types[zoneType] || types.country;
+                    };
+
+                    const zoneInfo = getZoneTypeInfo(zone.zoneType);
+                    const isSelected = selectedZones.has(zone._id);
+
+                    return (
+                      <div
+                        key={zone._id}
+                        className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                          isSelected 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                        onClick={() => handleZoneSelection(zone._id, !isSelected)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleZoneSelection(zone._id, !isSelected)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-lg">{zoneInfo.icon}</span>
+                            <div>
+                              <div className="font-medium text-gray-900 text-sm">
+                                {zone.name || `${zone.city || zone.state || zone.country}`}
+                              </div>
+                              <div className={`text-xs px-2 py-0.5 rounded inline-block ${zoneInfo.color}`}>
+                                {zoneInfo.label}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right text-sm">
+                            <div className="font-medium text-gray-900">
+                              ${zone.shippingCost || '0.00'}
+                            </div>
+                            <div className="text-gray-500 text-xs">
+                              {zone.estimatedDeliveryDays?.min || 2}-{zone.estimatedDeliveryDays?.max || 7} days
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between p-4 border-t bg-gray-50">
+              <div className="text-sm text-gray-600">
+                {selectedZones.size} zone{selectedZones.size !== 1 ? 's' : ''} selected
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowZoneSelector(false);
+                    setCurrentVariantIndex(null);
+                    setSelectedZones(new Set());
+                  }}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyZonesToVariant(currentVariantIndex)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  disabled={selectedZones.size === 0}
+                >
+                  Apply Selected Zones
+                </button>
+              </div>
             </div>
           </div>
         </div>

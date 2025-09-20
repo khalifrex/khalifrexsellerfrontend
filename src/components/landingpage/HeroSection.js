@@ -1,5 +1,6 @@
 "use client";
 import { ArrowRight, Star } from 'lucide-react';
+import Link from "next/link";
 
 export const HeroSection = () => {
   return (
@@ -16,13 +17,19 @@ export const HeroSection = () => {
               Start selling today and reach millions of customers across the country.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <button className="bg-[#127ACA] text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#0f6aa3] transition-all transform hover:scale-105 flex items-center justify-center gap-2">
-                Start Selling Now
+              <Link 
+                href="/signup" 
+                className="bg-[#127ACA] text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#0f6aa3] transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+              >
+                Sign Up Now
                 <ArrowRight size={20} />
-              </button>
-              <button className="border-2 border-[#127ACA] text-[#127ACA] px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#127ACA] hover:text-white transition-all">
+              </Link>
+              <Link 
+                href="#" 
+                className="border-2 border-[#127ACA] text-[#127ACA] px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#127ACA] hover:text-white transition-all"
+              >
                 Learn More
-              </button>
+              </Link>
             </div>
             <div className="mt-8 flex items-center justify-center lg:justify-start space-x-6 text-sm text-gray-500">
               <div className="flex items-center space-x-1">
@@ -33,7 +40,7 @@ export const HeroSection = () => {
               <div>10,000+ Active Sellers</div>
             </div>
           </div>
-          
+                 
           <div className="relative">
             <div className="bg-white rounded-2xl shadow-2xl p-8 relative z-10">
               <div className="text-center mb-6">

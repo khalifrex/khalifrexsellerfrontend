@@ -3,7 +3,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { LayoutDashboard, Package, BarChart2, ShoppingBag, Settings, HelpCircle, LogOut, ChevronUp, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Package, BarChart2, ShoppingBag, Settings, HelpCircle, LogOut, ChevronUp, ChevronDown, Truck } from "lucide-react";
 
 const menuLinks = [
   { href: "/dashboard", label: "Home", icon: <LayoutDashboard size={18} /> },
@@ -17,6 +17,7 @@ const menuLinks = [
   },
   { href: "/dashboard/orders", label: "My Orders", icon: <ShoppingBag size={18} /> },
   { href: "/dashboard/analytics", label: "Analytics", icon: <BarChart2 size={18} /> },
+  { href: "/dashboard/shipping-zones", label: "Shipping Zones", icon: <Truck size={18} /> },
 ];
 
 
