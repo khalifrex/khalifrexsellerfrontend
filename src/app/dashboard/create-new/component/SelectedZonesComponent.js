@@ -21,7 +21,7 @@ export default function SelectedZones({
           Change Zones
         </button>
       </div>
-      
+             
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {offer.selectedShippingZones.map((zone) => {
           const typeInfo = getZoneTypeInfo(zone.zoneType);

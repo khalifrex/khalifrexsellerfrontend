@@ -109,7 +109,7 @@ export default function Sidebar({ pathname, productDropdown, setProductDropdown 
           </div>
 
           <h3 className="text-xs uppercase font-semibold text-gray-500 mt-6 mb-2">General</h3>
-          <div className="space-y-1">
+          <div className="space-y-1 relative">
             {generalLinks.map((link) => 
               link.href ? (
                 <Link
@@ -134,40 +134,40 @@ export default function Sidebar({ pathname, productDropdown, setProductDropdown 
         )
             )}
 
-              {/* Logout Confirmation Modal */}
-  {showLogoutModal && (
-    <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-[300px] animate-fadeIn">
-        <h2 className="text-lg font-semibold mb-4">Confirm Logout</h2>
-        <p className="text-sm text-gray-600 mb-4">Are you sure you want to logout?</p>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={() => setShowLogoutModal(false)}
-            className="px-4 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                await fetch("http://localhost:3092/logout", {
-                  method: "POST",
-                  credentials: "include",
-                });
-                setShowLogoutModal(false);
-                router.push("/login");
-              } catch (err) {
-                console.error("Logout failed", err);
-              }
-            }}
-            className="px-4 py-1 text-sm rounded bg-red-500 text-white hover:bg-red-600"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
-    </div>
-  )}
+            {/* Logout Confirmation Modal - positioned relative to sidebar */}
+            {showLogoutModal && (
+              <div className="absolute top-0 right-0 transform translate-x-full ml-4 z-50">
+                <div className="bg-white border border-gray-200 rounded-lg shadow-lg w-[280px] p-4 animate-fadeIn">
+                  <h2 className="text-base font-semibold mb-3 text-gray-800">Confirm Logout</h2>
+                  <p className="text-sm text-gray-600 mb-4">Are you sure you want to logout?</p>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowLogoutModal(false)}
+                      className="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-50 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await fetch("http://localhost:3092/logout", {
+                            method: "POST",
+                            credentials: "include",
+                          });
+                          setShowLogoutModal(false);
+                          router.push("/signin");
+                        } catch (err) {
+                          console.error("Logout failed", err);
+                        }
+                      }}
+                      className="px-3 py-1.5 text-sm rounded bg-red-500 text-white hover:bg-red-600 transition"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </nav>
       </div>

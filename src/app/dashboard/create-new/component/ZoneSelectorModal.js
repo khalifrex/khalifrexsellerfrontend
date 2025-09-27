@@ -48,56 +48,58 @@ export default function ZoneSelectorModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between mb-4">
+    <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+      <div className="bg-white border border-gray-200 rounded-lg shadow-xl max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold">Select Shipping Zones</h3>
           <button
             onClick={() => setShowZoneSelector(false)}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 transition"
           >
             <XCircle size={24} />
           </button>
         </div>
 
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={handleSelectAllZones}
-            className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200"
-          >
-            Select All ({shippingZones.length})
-          </button>
-          <button
-            onClick={handleClearAllZones}
-            className="px-3 py-1 bg-gray-100 text-gray-800 rounded text-sm hover:bg-gray-200"
-          >
-            Clear All
-          </button>
-          <div className="ml-auto text-sm text-gray-600">
-            {selectedZones.size} of {shippingZones.length} zones selected
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={handleSelectAllZones}
+              className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200 transition"
+            >
+              Select All ({shippingZones.length})
+            </button>
+            <button
+              onClick={handleClearAllZones}
+              className="px-3 py-1 bg-gray-100 text-gray-800 rounded text-sm hover:bg-gray-200 transition"
+            >
+              Clear All
+            </button>
+            <div className="ml-auto text-sm text-gray-600">
+              {selectedZones.size} of {shippingZones.length} zones selected
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto border border-gray-200 rounded">
+        <div className="flex-1 overflow-y-auto p-6">
           {isLoadingZones ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               <span className="ml-2 text-sm text-gray-600">Loading zones...</span>
             </div>
           ) : shippingZones.length === 0 ? (
-            <div className="p-6 text-center text-gray-500">
+            <div className="text-center text-gray-500 py-8">
               <Globe className="mx-auto mb-2 text-gray-400" size={48} />
               <p className="font-medium">No shipping zones configured</p>
               <p className="text-sm mt-1">Create shipping zones first to assign to offers</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="space-y-3">
               {shippingZones.map((zone) => {
                 const typeInfo = getZoneTypeInfo(zone.zoneType);
                 const isSelected = selectedZones.has(zone._id);
                 
                 return (
-                  <div key={zone._id} className="p-4 hover:bg-gray-50">
+                  <div key={zone._id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition">
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
@@ -135,17 +137,17 @@ export default function ZoneSelectorModal({
           )}
         </div>
 
-        <div className="flex justify-between pt-4 mt-4 border-t">
+        <div className="flex justify-between items-center p-6 border-t border-gray-200 bg-gray-50">
           <button
             onClick={() => setShowZoneSelector(false)}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition"
           >
             Cancel
           </button>
           <button
             onClick={() => applyZonesToOffer(currentOfferIndex)}
             disabled={selectedZones.size === 0}
-            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 transition"
           >
             Apply Selected Zones ({selectedZones.size})
           </button>

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, Clock } from 'lucide-react';
 import Image from 'next/image';
 
 export default function SellerSignIn({
@@ -23,18 +23,27 @@ export default function SellerSignIn({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sellerAccessError, setSellerAccessError] = useState(false);
+  const [accountUnderReview, setAccountUnderReview] = useState(false);
+  const [accountInactive, setAccountInactive] = useState(false);
+  const [accountRejected, setAccountRejected] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (error) setError('');
     if (sellerAccessError) setSellerAccessError(false);
+    if (accountUnderReview) setAccountUnderReview(false);
+    if (accountInactive) setAccountInactive(false);
+    if (accountRejected) setAccountRejected(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSellerAccessError(false);
+    setAccountUnderReview(false);
+    setAccountInactive(false);
+    setAccountRejected(false);
     setLoading(true);
 
     const apiURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3092';
@@ -51,10 +60,35 @@ export default function SellerSignIn({
       const data = await res.json();
 
       if (!res.ok) {
+        // Handle specific seller status errors
+        if (res.status === 403) {
+          if (data.message.includes('under review') || data.message.includes('pending')) {
+            setAccountUnderReview(true);
+            return;
+          }
+          
+          if (data.message.includes('not active') || data.message.includes('inactive')) {
+            setAccountInactive(true);
+            return;
+          }
+          
+          if (data.message.includes('rejected')) {
+            setAccountRejected(true);
+            return;
+          }
+          
+          if (data.message.includes('banned')) {
+            setError(data.message);
+            toast.error(data.message);
+            return;
+          }
+        }
+        
         // Check if it's invalid credentials vs account not found
         if (res.status === 401) {
           throw new Error(data.message || 'Invalid email or password');
         }
+        
         throw new Error(data.message || 'Login failed');
       }
 
@@ -62,9 +96,8 @@ export default function SellerSignIn({
         throw new Error('Invalid user data received');
       }
 
-
+      // Check if user doesn't have seller role
       if (!data.user.roles.seller) {
-        
         toast.success('Login successful! Let\'s set up your seller account.');
         setTimeout(() => {
           router.push('/become-seller');
@@ -72,9 +105,8 @@ export default function SellerSignIn({
         return;
       }
 
-
+      // Check if user has seller role but no seller profile
       if (!data.sellerStatus?.hasSeller) {
-
         toast.success('Login successful! Please complete your seller profile.');
         setTimeout(() => {
           router.push('/become-seller');
@@ -82,7 +114,7 @@ export default function SellerSignIn({
         return;
       }
 
-
+      // Successful login
       toast.success('Login successful!');
 
       if (onSuccess) onSuccess();
@@ -95,7 +127,7 @@ export default function SellerSignIn({
     } catch (err) {
       console.error('Login error:', err);
       
-
+      // Handle account not found case
       if (err.message.includes('Invalid credentials') || err.message.includes('User not found')) {
         toast.error('Account not found. Please create an account first.');
         setTimeout(() => {
@@ -110,8 +142,6 @@ export default function SellerSignIn({
       setLoading(false);
     }
   };
-
-  const apiURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3092';
 
   return (
     <>
@@ -137,6 +167,98 @@ export default function SellerSignIn({
 
           {/* Form Content */}
           <div className="px-8 py-6">
+            {/* Account Rejected Error */}
+            {accountRejected && (
+              <div className="bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-500 rounded-lg p-6 mb-6">
+                <div className="flex items-center mb-3">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-6 w-6 text-red-500" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-lg font-semibold text-red-800">
+                      Account Rejected
+                    </h3>
+                  </div>
+                </div>
+                <div className="ml-9">
+                  <p className="text-red-700 mb-4 leading-relaxed">
+                    Your seller account application has been rejected. Please review the feedback and resubmit your application with the required corrections.
+                  </p>
+                  <div className="space-y-3">
+                    <Link
+                      href="/become-seller"
+                      className="inline-flex items-center px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Review & Resubmit
+                    </Link>
+                    <p className="text-xs text-red-500 mt-2">
+                      Check the feedback and update your application
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Account Under Review Error */}
+            {accountUnderReview && (
+              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-400 rounded-lg p-6 mb-6">
+                <div className="flex items-center mb-3">
+                  <div className="flex-shrink-0">
+                    <Clock className="h-6 w-6 text-yellow-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-lg font-semibold text-yellow-800">
+                      Account Under Review
+                    </h3>
+                  </div>
+                </div>
+                <div className="ml-9">
+                  <p className="text-yellow-700 mb-4 leading-relaxed">
+                    Your seller account is currently under review. Please wait for approval. 
+                    An email will be sent when your account is active.
+                  </p>
+                  <div className="bg-yellow-100 rounded-lg p-3 mt-4">
+                    <p className="text-sm text-yellow-800">
+                      <strong>What happens next?</strong><br />
+                      Our team is reviewing your documents and information. This process typically takes 1-3 business days.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Account Inactive Error */}
+            {accountInactive && (
+              <div className="bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-400 rounded-lg p-6 mb-6">
+                <div className="flex items-center mb-3">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-6 w-6 text-red-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-lg font-semibold text-red-800">
+                      Account Inactive
+                    </h3>
+                  </div>
+                </div>
+                <div className="ml-9">
+                  <p className="text-red-700 mb-4 leading-relaxed">
+                    Your seller account is not active. Please contact our support team for assistance.
+                  </p>
+                  <div className="space-y-3">
+                    <Link
+                      href="/contact-support"
+                      className="inline-flex items-center px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Contact Support
+                    </Link>
+                    <p className="text-xs text-red-500 mt-2">
+                      Our support team will help reactivate your account
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Seller Access Error */}
             {sellerAccessError && (
               <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-400 rounded-lg p-6 mb-6">
@@ -175,7 +297,8 @@ export default function SellerSignIn({
               </div>
             )}
 
-            {error && !sellerAccessError && (
+            {/* General Error */}
+            {error && !sellerAccessError && !accountUnderReview && !accountInactive && !accountRejected && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                 <p className="text-red-600 text-sm text-center">{error}</p>
               </div>

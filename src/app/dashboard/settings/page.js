@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import StoreProfile from "./components/StoreProfile";
 import GeneralSettings from "./components/GeneralSettings";
 import PlanSection from "./components/PlanSection";
-import BillingSection from "./components/BillingSection";
-import BillingModal from "./components/BillingModal";
 import StoreModal from "./components/StoreModal";
 import KycSection from "./components/KycSection";
 import FooterUserInfo from "./components/FooterUserInfo";
@@ -18,135 +16,194 @@ export default function SettingsPage() {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [generalOpen, setGeneralOpen] = useState(false);
   const [storeModalOpen, setStoreModalOpen] = useState(false);
-  const [billingModalOpen, setBillingModalOpen] = useState(false);
-
-
-  const [kycStatus] = useState("Pending");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [storeForm, setStoreForm] = useState({
     storeName: "",
-    email: "",
-  });
-
-  const [currency, setCurrency] = useState("USD");
-  const [billingAddress, setBillingAddress] = useState({
-    legalName: "",
-    country: "",
-    apartment: "",
-    city: "",
-    state: "",
-    postalCode: "",
   });
 
   useEffect(() => {
     const fetchSellerInfo = async () => {
       try {
+        setLoading(true);
         const res = await fetch("http://localhost:3092/seller/store-info", {
           credentials: "include",
         });
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const data = await res.json();
         setSellerInfo(data);
 
         setStoreForm({
           storeName: data.storeName || "",
-          email: data.email || "",
         });
 
-        const resSettings = await fetch(
-          "http://localhost:3092/seller/get-settings",
-          { credentials: "include" }
-        );
-        const settingsData = await resSettings.json();
-        setBillingAddress(settingsData.billingAddress);
-        setCurrency(settingsData.currency);
       } catch (err) {
         console.error("Failed to fetch seller info", err);
+        setError("Failed to load seller information");
+        toast.error("Failed to load seller information");
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchSellerInfo();
   }, []);
 
+  const handleUpgradeSuccess = async () => {
+    try {
+      const res = await fetch("http://localhost:3092/seller/store-info", {
+        credentials: "include",
+      });
+      const data = await res.json();
+      setSellerInfo(data);
+      toast.success("Successfully upgraded to Professional!");
+    } catch (err) {
+      console.error("Failed to refresh seller info after upgrade", err);
+      toast.error("Failed to refresh seller info");
+    }
+  };
+
   const handleStoreInputChange = (e) => {
     const { name, value } = e.target;
     setStoreForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleBillingInputChange = (e) => {
-    const { name, value } = e.target;
-    setBillingAddress((prev) => ({ ...prev, [name]: value }));
-  };
-
+  // Updated to only handle store name
   const handleSaveStore = async () => {
     try {
-      const res = await fetch("http://localhost:3092/seller/update-store", {
+      const res = await fetch("http://localhost:3092/seller/update-store-name", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json" 
+        },
         credentials: "include",
-        body: JSON.stringify(storeForm),
+        body: JSON.stringify({ storeName: storeForm.storeName.trim() }),
       });
 
       const data = await res.json();
 
-      if (!res.ok || !data.user) {
-        throw new Error(data.message || "Failed to save store info");
+      if (!res.ok) {
+        throw new Error(data.message || data.error || "Failed to update store name");
       }
 
+      // Update the seller info with new store name
       setSellerInfo((prev) => ({
         ...prev,
-        email: data.user.email,
-        pendingEmail: data.user.pendingEmail,
-        storeName: data.user.storeName,
+        storeName: data.storeName,
       }));
 
-      if (data.user.pendingPhone) {
-        setPendingPhone(data.user.pendingPhone);
-        setPhoneVerificationOpen(true);
-      }
-
-      if (data.user.pendingEmail || data.user.pendingPhone) {
-        toast.success("Store info saved. Verification required.");
-      } else {
-        toast.success("Store info updated successfully.");
-      }
-
+      toast.success("Store name updated successfully!");
       setStoreModalOpen(false);
+
+      // Trigger success animation in GeneralSettings
+      window.dispatchEvent(new CustomEvent('storeNameUpdated'));
+
     } catch (err) {
-      console.error(err);
-      toast.error("Error updating store information.");
+      console.error("Error updating store name:", err);
+      toast.error(err.message || "Failed to update store name");
     }
   };
 
+  // Callback to refresh seller info after KYC submission
+  const handleKycStatusChange = async () => {
+    try {
+      const res = await fetch("http://localhost:3092/seller/store-info", {
+        credentials: "include",
+      });
+      const data = await res.json();
+      setSellerInfo(data);
+    } catch (err) {
+      console.error("Failed to refresh seller info after KYC update", err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-xl shadow-lg">
+          <div className="flex items-center space-x-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+            <span className="text-gray-600 font-medium">Loading seller information...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md text-center">
+          <div className="text-red-500 mb-4">
+            <svg className="h-12 w-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Failed to Load</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!sellerInfo) {
-    return <div className="p-10 text-gray-500">Loading seller info...</div>;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-xl shadow-lg">
+          <div className="text-gray-500 text-center">
+            <svg className="h-12 w-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+            </svg>
+            <p className="font-medium">No seller information found</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 md:p-10">
-      <h1 className="text-3xl font-semibold mb-8">Settings</h1>
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
+        <p className="text-gray-600">Manage your store settings and preferences</p>
+      </div>
 
       <div className="space-y-8">
         <StoreProfile sellerInfo={sellerInfo} />
+        
         <GeneralSettings
           generalOpen={generalOpen}
           setGeneralOpen={setGeneralOpen}
           storeModalOpen={storeModalOpen}
           setStoreModalOpen={setStoreModalOpen}
           storeForm={storeForm}
-          billingAddress={billingAddress}
-          currency={currency}
-          setCurrency={setCurrency}
-          handleBillingInputChange={handleBillingInputChange}
         />
-        <PlanSection />
-        <BillingSection setBillingModalOpen={setBillingModalOpen} />
-        <KycSection kycStatus={kycStatus} />
+
+        <PlanSection 
+          sellerInfo={sellerInfo} 
+          onUpgradeSuccess={handleUpgradeSuccess}
+        />
+
+        <KycSection onKycStatusChange={handleKycStatusChange} />
       </div>
 
       <PrivacyPolicySection setPrivacyOpen={setPrivacyOpen} />
       <hr className="my-12" />
       <FooterUserInfo user={sellerInfo} />
 
+      {/* Store Name Modal */}
       {storeModalOpen && (
         <StoreModal
           storeForm={storeForm}
@@ -157,10 +214,7 @@ export default function SettingsPage() {
         />
       )}
 
-      {billingModalOpen && (
-        <BillingModal setBillingModalOpen={setBillingModalOpen} />
-      )}
-
+      {/* Privacy Policy Modal */}
       {privacyOpen && (
         <PrivacyPolicyModal setPrivacyOpen={setPrivacyOpen} />
       )}

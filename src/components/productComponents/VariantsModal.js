@@ -1,5 +1,6 @@
+// components/productComponents/VariantsModal.js
 import { motion } from "framer-motion";
-import { Plus, Package } from "lucide-react";
+import { Package, RefreshCw } from "lucide-react";
 import { getVariantDisplayName, formatPrice } from "@/utils/productUtils";
 
 export const VariantsModal = ({ 
@@ -8,7 +9,8 @@ export const VariantsModal = ({
   selectedProduct, 
   productVariants,
   onVariantSelect,
-  onAddNewVariant 
+  onLoadMoreVariants,
+  loadingVariants
 }) => {
   if (!show || !selectedProduct) return null;
 
@@ -40,89 +42,152 @@ export const VariantsModal = ({
         {/* Product Summary */}
         <div className="bg-gray-50 rounded-lg p-4 mb-6">
           <h3 className="font-medium mb-2">{selectedProduct.name}</h3>
-          <div className="flex gap-4 text-sm text-gray-600">
+          <div className="flex gap-4 text-sm text-gray-600 flex-wrap">
             {selectedProduct.khalifrexId && <span>ID: {selectedProduct.khalifrexId}</span>}
             {selectedProduct.brand && <span>Brand: {selectedProduct.brand}</span>}
+            {selectedProduct.categoryName && <span>Category: {selectedProduct.categoryName}</span>}
             {selectedProduct.variationTheme && selectedProduct.variationTheme.length > 0 && (
               <span>Variation themes: {selectedProduct.variationTheme.join(', ')}</span>
             )}
           </div>
         </div>
 
-        {/* Add New Variant Button */}
-        <div className="mb-6">
-          <button
-            onClick={onAddNewVariant}
-            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 border-2 border-dashed border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
-            style={{
-              background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-              border: '2px dashed #22c55e'
-            }}
-          >
-            <Plus className="w-5 h-5" />
-            Add New Variant
-          </button>
-          <p className="text-sm text-gray-500 mt-2 text-center">
-            Dont see the variant you want to sell? Create a new one!
-          </p>
-        </div>
-
-        {/* Existing Variants Grid */}
+        {/* Variants Grid */}
         {productVariants.length > 0 ? (
           <>
-            <h3 className="text-lg font-semibold mb-4">Existing Variants</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {productVariants.map((variant) => (
-                <div
-                  key={variant._id}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Available Variants ({productVariants.length})</h3>
+              {onLoadMoreVariants && selectedProduct.khalifrexId && (
+                <button
+                  onClick={() => onLoadMoreVariants(selectedProduct.khalifrexId)}
+                  disabled={loadingVariants}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1 disabled:opacity-50"
                 >
-                  <div className="flex justify-between items-start mb-3">
-                    <h4 className="font-medium text-sm">{getVariantDisplayName(variant)}</h4>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      {variant.offerCount || 0} seller{(variant.offerCount || 0) !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  
-                  {variant.khalifrexId && (
-                    <p className="text-xs text-gray-600 mb-2 font-mono">ID: {variant.khalifrexId}</p>
-                  )}
-                  
-                  {(variant.price || variant.lowestPrice) && (
-                    <p className="text-lg font-semibold text-green-600 mb-3">
-                      {variant.lowestPrice ? (
-                        <>
-                          From {formatPrice(variant.lowestPrice)}
-                          {variant.price && variant.price !== variant.lowestPrice && (
-                            <span className="text-sm text-gray-500 ml-2">
-                              (MSRP: {formatPrice(variant.price)})
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        formatPrice(variant.price)
+                  <RefreshCw className={`w-4 h-4 ${loadingVariants ? 'animate-spin' : ''}`} />
+                  {loadingVariants ? 'Loading...' : 'Refresh Variants'}
+                </button>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+              {productVariants.map((variant) => (
+                <motion.div
+                  key={variant._id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all hover:border-blue-300 cursor-pointer"
+                  onClick={() => onVariantSelect(variant)}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-sm mb-1">{getVariantDisplayName(variant)}</h4>
+                      {variant.khalifrexId && (
+                        <p className="text-xs text-gray-600 font-mono">ID: {variant.khalifrexId}</p>
                       )}
-                    </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                        {variant.offerCount || 0} offer{(variant.offerCount || 0) !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Variant Attributes */}
+                  {variant.attributes && Object.keys(variant.attributes).length > 0 && (
+                    <div className="mb-3">
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(variant.attributes)
+                          .slice(0, 3)
+                          .map(([key, value]) => (
+                            <span 
+                              key={key} 
+                              className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full"
+                            >
+                              {key}: {value}
+                            </span>
+                          ))}
+                        {Object.keys(variant.attributes).length > 3 && (
+                          <span className="text-xs text-gray-500 px-2 py-1">
+                            +{Object.keys(variant.attributes).length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   )}
-                  
+
+                  {/* Price and Stock Info */}
+                  <div className="space-y-2">
+                    {(variant.price || variant.lowestPrice) && (
+                      <div className="text-lg font-semibold text-green-600">
+                        {variant.lowestPrice ? (
+                          <>
+                            From {formatPrice(variant.lowestPrice)}
+                            {variant.price && variant.price !== variant.lowestPrice && (
+                              <span className="text-sm text-gray-500 ml-2 font-normal">
+                                (MSRP: {formatPrice(variant.price)})
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          formatPrice(variant.price)
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className={`${
+                        variant.stock > 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {variant.stock > 0 ? `${variant.stock} in stock` : 'Out of stock'}
+                      </span>
+                      
+                      {variant.offerCount > 0 && (
+                        <span className="text-gray-500">
+                          {variant.offerCount} seller{variant.offerCount !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action Button */}
                   <button
-                    onClick={() => onVariantSelect(variant)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm mt-3"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onVariantSelect(variant);
+                    }}
                   >
-                    <Plus className="w-4 h-4" />
-                    Create Offer
+                    <Package className="w-4 h-4" />
+                    Create Offer for This Variant
                   </button>
-                </div>
+                </motion.div>
               ))}
             </div>
           </>
         ) : (
-          <div className="text-center py-8">
-            <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 mb-4">No existing variants for this product</p>
-            <p className="text-sm text-gray-400">You can be the first to add a variant!</p>
+          <div className="text-center py-12">
+            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">No variants found</h3>
+            <p className="text-gray-500 mb-4">
+              No variants are currently available for this product.
+            </p>
+            {onLoadMoreVariants && selectedProduct.khalifrexId && (
+              <button
+                onClick={() => onLoadMoreVariants(selectedProduct.khalifrexId)}
+                disabled={loadingVariants}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 mx-auto"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingVariants ? 'animate-spin' : ''}`} />
+                {loadingVariants ? 'Loading...' : 'Try Refreshing'}
+              </button>
+            )}
           </div>
         )}
+
+        {/* Footer */}
+        <div className="mt-6 pt-4 border-t text-center text-sm text-gray-500">
+          Select a variant above to create your offer and start selling
+        </div>
       </motion.div>
     </motion.div>
   );

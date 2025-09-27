@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { UploadCloud, XCircle } from "lucide-react";
 import ProductImages from "./OfferProductImages";
 import VariantSummary from "./OfferVariantSummary";
 import OffersSection from "./OfferSelection";

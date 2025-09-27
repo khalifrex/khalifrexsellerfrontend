@@ -26,7 +26,7 @@ export default function ProfileDropdown({ sellerInfo, profileOpen, setProfileOpe
         className="flex items-center gap-2"
       >
         <Image
-          src={sellerInfo.profileImage || "/avatar-placeholder.png"}
+          src={sellerInfo.storePic || "/avatar-placeholder.png"}
           alt="User"
           width={26}
           height={26}
@@ -41,7 +41,7 @@ export default function ProfileDropdown({ sellerInfo, profileOpen, setProfileOpe
         <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded shadow z-50">
           <div className="flex items-center gap-3 p-3 border-b">
             <Image
-              src={sellerInfo.profileImage || "/avatar-placeholder.png"}
+              src={sellerInfo.storePic || "/avatar-placeholder.png"}
               alt="User"
               width={32}
               height={32}
@@ -83,7 +83,7 @@ export default function ProfileDropdown({ sellerInfo, profileOpen, setProfileOpe
                       credentials: "include",
                     });
                     setShowLogoutModal(false);
-                    router.push("/login");
+                    router.push("/signin");
                   } catch (err) {
                     console.error("Logout failed", err);
                   }

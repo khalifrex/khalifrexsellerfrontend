@@ -13,7 +13,7 @@ export default function StoreProfile({ sellerInfo }) {
       <div className="flex items-center space-x-4">
         <div className="relative group">
           <Image
-            src={sellerInfo?.profileImage || "/avatar-placeholder.png"}
+            src={sellerInfo?.storePic || "/avatar-placeholder.png"}
             alt="Store Profile"
             width={64}
             height={64}
