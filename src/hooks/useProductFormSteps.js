@@ -3,15 +3,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
-// GTIN validation utilities
 const validateGTIN = (gtin, type) => {
   if (!gtin || !type) return false;
-  
   const cleanGtin = gtin.replace(/\D/g, '');
-  
   if (type === 'UPC' && cleanGtin.length !== 12) return false;
   if (type === 'EAN' && cleanGtin.length !== 13) return false;
-  
   return true;
 };
 
@@ -38,9 +34,7 @@ const generateUniqueSku = (brand, modelNumber, variantName = null, index = null)
 };
 
 export function useProductFormSteps() {
-  // Form state matching backend createProduct fields
   const [form, setForm] = useState({
-    // Product fields (backend createProduct)
     itemName: "",
     brand: "",
     modelName: "", 
@@ -48,36 +42,50 @@ export function useProductFormSteps() {
     category: "",
     variationTheme: [],
     description: "",
-    attributes: {} // Additional attributes map
+    attributes: {},
+    // Standalone product fields
+    sku: "",
+    gtinType: "",
+    gtin: ""
   });
 
   const [formErrors, setFormErrors] = useState({});
   const [hasVariants, setHasVariants] = useState(false);
-  
-  // Variant data for products with variations (backend createProduct variant fields)
   const [variantData, setVariantData] = useState([]);
-  
-  // Offer data for createOffer endpoint
   const [offerData, setOfferData] = useState([]);
+  
+  // Separate image states
+  const [mainImages, setMainImages] = useState([]); // 1-2 images
+  const [mainImagePreviews, setMainImagePreviews] = useState([]);
+  const [variantImages, setVariantImages] = useState([]); // 5-10 images for standalone
+  const [variantImagePreviews, setVariantImagePreviews] = useState([]);
 
   const [step, setStep] = useState(1);
   const [completedStep, setCompletedStep] = useState(1);
-  const [images, setImages] = useState([]);
-  const [imagePreviews, setImagePreviews] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-
   const [createdProductId, setCreatedProductId] = useState(null);
   const [createdVariantIds, setCreatedVariantIds] = useState([]);
 
   const router = useRouter();
+
+  const handleRemoveMainImage = (index) => {
+    setMainImages((prev) => prev.filter((_, i) => i !== index));
+    setMainImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    toast.success("Main image removed", { duration: 1500 });
+  };
+
+  const handleRemoveVariantImage = (index) => {
+    setVariantImages((prev) => prev.filter((_, i) => i !== index));
+    setVariantImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    toast.success("Variant image removed", { duration: 1500 });
+  };
 
   const validateStep = (showToasts = false) => {
     const errors = {};
     const errorMessages = [];
     
     if (step === 1) {
-      // Step 1 validation - Basic Info (backend required fields)
       if (!form.itemName?.trim()) {
         errors.itemName = "Item name is required.";
         errorMessages.push("Please enter an item name");
@@ -108,7 +116,6 @@ export function useProductFormSteps() {
     }
     
     if (step === 2) {
-      // Step 2 validation - Category and Variants
       if (!form.category?.trim()) {
         errors.category = "Category selection is required.";
         errorMessages.push("Please select a product category");
@@ -124,7 +131,6 @@ export function useProductFormSteps() {
           errors.variants = "Please create at least one variant combination.";
           errorMessages.push("You need to create at least one product variant");
         } else {
-          // Validate variants with backend-required fields
           variantData.forEach((variant, index) => {
             const variantLabel = `Variant ${index + 1}${variant.name ? ` (${variant.name})` : ''}`;
             
@@ -133,7 +139,6 @@ export function useProductFormSteps() {
               errorMessages.push(`${variantLabel}: SKU is required`);
             }
             
-            // GTIN validation (required in backend)
             if (!variant.gtinType) {
               errors[`combo_${index}_gtinType`] = "GTIN type is required.";
               errorMessages.push(`${variantLabel}: Please select GTIN type (UPC or EAN)`);
@@ -152,30 +157,47 @@ export function useProductFormSteps() {
     }
     
     if (step === 3) {
-      // Step 3 validation - Images and Offers
-      if (images.length === 0) {
-        errors.images = "At least one product image is required.";
-        errorMessages.push("Please add at least one product image");
+      // Main images validation (1-2 required)
+      if (mainImages.length === 0) {
+        errors.mainImages = "At least 1 main image is required (max 2).";
+        errorMessages.push("Please add at least 1 main product image");
+      } else if (mainImages.length > 2) {
+        errors.mainImages = "Maximum 2 main images allowed.";
+        errorMessages.push("Please remove extra main images (max 2)");
       }
       
-      // Validate offers based on backend createOffer requirements
-      if (hasVariants) {
-        // For variants, offers are created based on variant data
-        variantData.forEach((variant, index) => {
-          const variantLabel = `Variant ${index + 1}`;
-          
-          if (!variant.price || parseFloat(variant.price) <= 0) {
-            errors[`variant_${index}_price`] = "Valid price is required.";
-            errorMessages.push(`${variantLabel}: Please enter a valid price greater than 0`);
-          }
-          
-          if (variant.stock === undefined || variant.stock === null || parseInt(variant.stock) < 0) {
-            errors[`variant_${index}_stock`] = "Valid stock quantity is required.";
-            errorMessages.push(`${variantLabel}: Please enter a valid stock quantity (0 or more)`);
-          }
-        });
-      } else {
-        // For standalone products, validate single offer
+      // Validate standalone product requirements
+      if (!hasVariants) {
+        // Variant images validation (5-10 required for standalone)
+        if (variantImages.length < 5) {
+          errors.variantImages = "At least 5 variant images are required (5-10 total).";
+          errorMessages.push(`Please add ${5 - variantImages.length} more variant images`);
+        } else if (variantImages.length > 10) {
+          errors.variantImages = "Maximum 10 variant images allowed.";
+          errorMessages.push("Please remove extra variant images (max 10)");
+        }
+        
+        // SKU validation
+        if (!form.sku?.trim()) {
+          errors.sku = "SKU is required for standalone products.";
+          errorMessages.push("Please enter a SKU for your product");
+        }
+        
+        // GTIN validation
+        if (!form.gtinType) {
+          errors.gtinType = "GTIN type is required.";
+          errorMessages.push("Please select GTIN type (UPC or EAN)");
+        }
+        
+        if (!form.gtin?.trim()) {
+          errors.gtin = "GTIN is required.";
+          errorMessages.push("Please enter a GTIN for your product");
+        } else if (!validateGTIN(form.gtin, form.gtinType)) {
+          errors.gtin = "Invalid GTIN format.";
+          errorMessages.push(`Invalid ${form.gtinType} format - please check the number`);
+        }
+        
+        // Offer validation for standalone
         if (offerData.length === 0) {
           errors.offers = "Please create at least one offer.";
           errorMessages.push("You need to create at least one product offer");
@@ -194,12 +216,26 @@ export function useProductFormSteps() {
             }
           });
         }
+      } else {
+        // Variant offer validation
+        variantData.forEach((variant, index) => {
+          const variantLabel = `Variant ${index + 1}`;
+          
+          if (!variant.price || parseFloat(variant.price) <= 0) {
+            errors[`variant_${index}_price`] = "Valid price is required.";
+            errorMessages.push(`${variantLabel}: Please enter a valid price greater than 0`);
+          }
+          
+          if (variant.stock === undefined || variant.stock === null || parseInt(variant.stock) < 0) {
+            errors[`variant_${index}_stock`] = "Valid stock quantity is required.";
+            errorMessages.push(`${variantLabel}: Please enter a valid stock quantity (0 or more)`);
+          }
+        });
       }
     }
     
     setFormErrors(errors);
     
-    // Show toast messages for validation errors
     if (showToasts && errorMessages.length > 0) {
       toast.error(`Please fix ${errorMessages.length} issue${errorMessages.length > 1 ? 's' : ''} to continue`, {
         duration: 4000,
@@ -267,27 +303,18 @@ export function useProductFormSteps() {
       setForm((prev) => ({ ...prev, [field]: value }));
     }
     
-    // Clear field error when user starts typing
     if (formErrors[field]) {
       setFormErrors((prev) => ({ ...prev, [field]: null }));
     }
   };
 
-  const handleRemoveImage = (index) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
-    toast.success("Image removed", { duration: 1500 });
-  };
-
-  // Create product with multiple variants using the single /products endpoint
   const createProduct = async () => {
     const formData = new FormData();
     
-    // Add product creation fields (matching backend createProduct)
+    // Add product fields
     Object.entries(form).forEach(([key, value]) => {
       if (key === 'variationTheme' && Array.isArray(value)) {
-        // Don't add variationTheme as JSON - handle separately below
-        return;
+        return; // Handle separately
       } else if (key === 'attributes' && typeof value === 'object') {
         formData.append(key, JSON.stringify(value));
       } else if (value !== '' && value !== null && value !== undefined) {
@@ -295,18 +322,17 @@ export function useProductFormSteps() {
       }
     });
 
-    // Add each variation theme as separate form field
+    // Add variation themes
     if (form.variationTheme && Array.isArray(form.variationTheme)) {
       form.variationTheme.forEach(theme => {
         formData.append('variationTheme', theme);
       });
     }
 
-    // NEW: Prepare variants array for backend
+    // Prepare variants
     let variantsToSend = [];
 
     if (hasVariants && variantData.length > 0) {
-      // For products with variations, send all variants
       variantsToSend = variantData.map((variant, index) => ({
         name: variant.name || `${form.itemName} - Variant ${index + 1}`,
         variantAttributes: variant.variantAttributes || {},
@@ -317,21 +343,25 @@ export function useProductFormSteps() {
         dimensions: variant.dimensions
       }));
     } else {
-      // For standalone products, create single variant
+      // Standalone product - use form GTIN data
       variantsToSend = [{
         name: form.itemName,
         variantAttributes: {},
-        sku: generateUniqueSku(form.brand, form.modelNumber),
-        gtinType: 'UPC',
-        gtin: '000000000000'
+        sku: form.sku || generateUniqueSku(form.brand, form.modelNumber),
+        gtinType: form.gtinType,
+        gtin: form.gtin
       }];
     }
 
-    // Add variants array as JSON string
     formData.append('variants', JSON.stringify(variantsToSend));
 
-    // Add images
-    images.forEach((img) => formData.append("images", img));
+    // Add main images (1-2)
+    mainImages.forEach((img) => formData.append("mainImages", img));
+    
+    // Add variant images (5-10 for standalone, or variant-specific for variations)
+    if (!hasVariants) {
+      variantImages.forEach((img) => formData.append("variantImages", img));
+    }
 
     const response = await fetch("http://localhost:3092/products", {
       method: "POST",
@@ -365,21 +395,18 @@ export function useProductFormSteps() {
     return result;
   };
 
-  // Create offers for ALL created variants
   const createOffersForAllVariants = async (productResult) => {
     const offers = [];
-    const variants = productResult.variants || []; // Now we get an array of variants
+    const variants = productResult.variants || [];
 
     if (!variants || variants.length === 0) {
       throw new Error('No variants returned from product creation');
     }
 
-    // Store all created variant IDs
     const allVariantIds = variants.map(v => v._id);
     setCreatedVariantIds(prev => [...prev, ...allVariantIds]);
 
     if (hasVariants) {
-      // For products with variations, create offers for each variant based on pricing data
       for (let i = 0; i < variants.length && i < variantData.length; i++) {
         const variant = variants[i];
         const variantPricing = variantData[i];
@@ -417,7 +444,7 @@ export function useProductFormSteps() {
             
             if (response.status === 409) {
               toast.warning(`Offer already exists for variant: ${variant.name}`, { duration: 2000 });
-              continue; // Skip this offer but continue with others
+              continue;
             }
             
             throw new Error(errorData.error || `Failed to create offer for variant: ${variant.name}`);
@@ -431,20 +458,18 @@ export function useProductFormSteps() {
         } catch (error) {
           console.error(`Error creating offer for variant ${variant.name}:`, error);
           toast.error(`Failed to create offer for ${variant.name}: ${error.message}`, { duration: 2000 });
-          // Continue with other offers instead of failing completely
         }
       }
 
     } else {
-      // For standalone products, create offers based on Step 3 offer data
-      const variant = variants[0]; // Should only be one variant for standalone
+      const variant = variants[0];
       
       for (const [index, offer] of offerData.entries()) {
         const offerPayload = {
           price: parseFloat(offer.price),
           stock: parseInt(offer.stock),
           condition: offer.condition || 'new',
-          sellerSku: offer.sellerSku || variant.sku,
+          sellerSku: offer.sellerSku || form.sku || variant.sku,
           useDefaultZones: offer.useDefaultZones || true,
           shippingZoneIds: offer.shippingZoneIds || [],
           pickup: offer.pickup || {
@@ -480,7 +505,6 @@ export function useProductFormSteps() {
         } catch (error) {
           console.error(`Error creating offer ${index + 1}:`, error);
           toast.error(`Failed to create offer ${index + 1}: ${error.message}`, { duration: 2000 });
-          // Continue with other offers
         }
       }
     }
@@ -501,10 +525,8 @@ export function useProductFormSteps() {
       setUploadProgress(20);
       toast.loading("Creating product and all variants...", { id: 'product-creation' });
       
-      // Create product with all variants in one API call
       const productResult = await createProduct();
       
-      // Store the created product ID
       if (productResult.product) {
         setCreatedProductId(productResult.product._id);
       }
@@ -513,7 +535,6 @@ export function useProductFormSteps() {
       const variants = productResult.variants || [];
       const summary = productResult.summary || {};
       
-      // Show appropriate success message based on what was created
       const variantsCreated = summary.variantsCreated || variants.length;
       const variantsFailed = summary.variantsFailed || 0;
       
@@ -523,14 +544,12 @@ export function useProductFormSteps() {
         toast.success(`${variantsCreated} variant${variantsCreated !== 1 ? 's' : ''} added to existing product!`, { id: 'product-creation' });
       }
 
-      // Show warning if some variants failed
       if (variantsFailed > 0) {
         toast.warning(`Note: ${variantsFailed} variant${variantsFailed !== 1 ? 's' : ''} failed to create. Check for duplicate SKUs/GTINs.`, {
           duration: 4000
         });
       }
 
-      // Show variant creation errors if any
       if (productResult.variantErrors && productResult.variantErrors.length > 0) {
         setTimeout(() => {
           productResult.variantErrors.forEach(err => {
@@ -542,7 +561,6 @@ export function useProductFormSteps() {
       setUploadProgress(70);
       toast.loading(`Creating offers for ${variants.length} variant${variants.length !== 1 ? 's' : ''}...`, { id: 'offer-creation' });
       
-      // Create offers for all successfully created variants
       const offers = await createOffersForAllVariants(productResult);
       
       const offersCount = offers.length;
@@ -558,7 +576,6 @@ export function useProductFormSteps() {
 
       setUploadProgress(100);
       
-      // Final success message with complete summary
       const finalMessage = isNewProduct 
         ? `Product listing completed! Created new product with ${variantsCreated} variant${variantsCreated !== 1 ? 's' : ''} and ${offersCount} offer${offersCount !== 1 ? 's' : ''}. Redirecting...`
         : `Variants added successfully! Created ${variantsCreated} variant${variantsCreated !== 1 ? 's' : ''} with ${offersCount} offer${offersCount !== 1 ? 's' : ''}. Redirecting...`;
@@ -567,7 +584,6 @@ export function useProductFormSteps() {
         duration: 4000,
       });
       
-      // Show detailed summary
       setTimeout(() => {
         const productCount = isNewProduct ? 1 : 0;
         toast.success(`Summary: ${productCount} Product${productCount !== 1 ? 's' : ''} + ${variantsCreated} Variant${variantsCreated !== 1 ? 's' : ''} + ${offersCount} Offer${offersCount !== 1 ? 's' : ''} = Complete!`, {
@@ -575,7 +591,6 @@ export function useProductFormSteps() {
         });
       }, 500);
       
-      // Clear saved draft
       localStorage.removeItem("productDraft");
       localStorage.removeItem("productDraftSavedAt");
       
@@ -601,11 +616,16 @@ export function useProductFormSteps() {
     setStep,
     completedStep,
     setCompletedStep,
-    images,
-    setImages,
-    imagePreviews,
-    setImagePreviews,
-    handleRemoveImage,
+    mainImages,
+    setMainImages,
+    mainImagePreviews,
+    setMainImagePreviews,
+    handleRemoveMainImage,
+    variantImages,
+    setVariantImages,
+    variantImagePreviews,
+    setVariantImagePreviews,
+    handleRemoveVariantImage,
     hasVariants,
     setHasVariants,
     variantData,
@@ -624,7 +644,6 @@ export function useProductFormSteps() {
     handleInput,
     createdProductId,
     createdVariantIds,
-    // Utility functions for components
     validateGTIN,
     generateUniqueSku
   };

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+
 export function useFormData() {
   const [formData, setFormData] = useState({
     // Personal Info
@@ -26,7 +27,7 @@ export function useFormData() {
     },
     
     // Business Info
-    businessType: 'individual bussiness',
+    businessType: 'individual business',
     businessName: '',
     businessLocation: '',
     companyRegistrationNumber: '',
@@ -43,6 +44,16 @@ export function useFormData() {
       state: '',
     },
     
+    // Tax Configuration
+    taxStatus: 'non-taxable', // Default for individual business
+    taxId: '',
+    taxConfig: {
+      taxName: '',
+      taxRate: 0,
+      country: '',
+      includeInPrices: false
+    },
+    
     storeName: '',
     subscriptionType: 'free',
     
@@ -57,7 +68,18 @@ export function useFormData() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Auto-update taxStatus when businessType changes
+    if (name === 'businessType') {
+      const newTaxStatus = value === 'individual business' ? 'non-taxable' : 'taxable';
+      setFormData(prev => ({ 
+        ...prev, 
+        [name]: value,
+        taxStatus: newTaxStatus
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
     
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));

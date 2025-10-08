@@ -13,7 +13,7 @@ import StoreSetupStep from '@/components/become-sellerComponents/StoreSetupStep'
 import DocumentsStep from '@/components/become-sellerComponents/DocumentsStep';
 import SecurityStep from '@/components/become-sellerComponents/SecurityStep';
 import ProfessionalPaymentStep from '@/components/become-sellerComponents/ProfessionalPaymentStep';
-
+import TaxConfigurationStep from '@/components/become-sellerComponents/TaxConfigurationStep';
 // Import hooks and utilities
 import { useFormData } from '@/hooks/useFormData';
 import { useLocationData } from '@/hooks/useLocationData';
@@ -152,140 +152,156 @@ export default function SellOnKhalifrex() {
   const { validateStep } = useFormValidation();
 
   // Calculate total steps based on subscription type
-  const totalSteps = formData.subscriptionType === 'professional' ? 6 : 5;
+  const totalSteps = formData.subscriptionType === 'professional' ? 7 : 6;
 
-  const handleNextStep = () => {
-    // Skip banking step for free users
-    let nextStep = currentStep + 1;
-    
-    // For free users, skip step 4 (banking) and go directly to step 5 (documents)
-    if (formData.subscriptionType === 'free' && currentStep === 3) {
-      nextStep = 5;
-    }
-    
-    if (validateStep(currentStep, formData, setErrors, currentStep === 5 ? uploadedFiles : null)) {
-      setCurrentStep(Math.min(nextStep, totalSteps));
-    }
-  };
+const handleNextStep = () => {
+  let nextStep = currentStep + 1;
+  
+  // For free users, skip step 5 (subscription) and go from 4 to 6
+  if (formData.subscriptionType === 'free' && currentStep === 4) {
+    nextStep = 6;
+  }
+  
+  // Validate current step
+    if (validateStep(currentStep, formData, setErrors, currentStep === 6 ? uploadedFiles : null)) {
+    setCurrentStep(Math.min(nextStep, totalSteps));
+  }
+
+};
 
   const handlePrevStep = () => {
     let prevStep = currentStep - 1;
     
     // For free users, skip banking step when going back
-    if (formData.subscriptionType === 'free' && currentStep === 5) {
-      prevStep = 3;
+    if (formData.subscriptionType === 'free' && currentStep === 6) {
+      prevStep = 4;
     }
     
     setCurrentStep(Math.max(prevStep, 1));
   };
 
   // Create seller account first (without payment)
-  const handleCreateSellerAccount = async (e) => {
-    e.preventDefault();
+ const handleCreateSellerAccount = async (e) => {
+  e.preventDefault();
+  
+  // Final validation
+  if (!validateStep(currentStep, formData, setErrors, uploadedFiles)) return;
+  if (!validateAllFiles()) return;
+  
+  setLoading(true);
+  
+  try {
+    const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3092'}/create-seller-profile`;
     
-    // Final validation
-    if (!validateStep(currentStep, formData, setErrors, uploadedFiles)) return;
-    if (!validateAllFiles()) return;
+    const formDataPayload = new FormData();
     
-    setLoading(true);
+    // Add all text fields
+    formDataPayload.append('firstName', formData.firstName);
+    formDataPayload.append('lastName', formData.lastName);
+    if (formData.middleName) formDataPayload.append('middleName', formData.middleName);
+    formDataPayload.append('phoneNumber', formData.phoneNumber);
     
-    try {
-      const endpoint = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3092'}/create-seller-profile`;
-      
-      const formDataPayload = new FormData();
-      
-      // Add all text fields
-      formDataPayload.append('firstName', formData.firstName);
-      formDataPayload.append('lastName', formData.lastName);
-      if (formData.middleName) formDataPayload.append('middleName', formData.middleName);
-      formDataPayload.append('phoneNumber', formData.phoneNumber);
-      
-      // Personal details
-      formDataPayload.append('countryOfCitizenship', formData.countryOfCitizenship);
-      formDataPayload.append('countryOfBirth', formData.countryOfBirth);
-      formDataPayload.append('dateOfBirth', formData.dateOfBirth);
-      
-      // Business details
-      formDataPayload.append('businessType', formData.businessType);
-      formDataPayload.append('businessLocation', formData.businessLocation);
-      formDataPayload.append('businessName', formData.businessName);
-      if (formData.companyRegistrationNumber) {
-        formDataPayload.append('companyRegistrationNumber', formData.companyRegistrationNumber);
-      }
-      
-      // Store details
-      formDataPayload.append('storeName', formData.storeName);
-      formDataPayload.append('subscriptionType', formData.subscriptionType);
-      
-      // Document types
-      formDataPayload.append('governmentIdType', formData.governmentIdType);
-      formDataPayload.append('proofOfResidenceType', formData.proofOfResidenceType);
-      formDataPayload.append('identityProofType', formData.governmentIdType);
-      formDataPayload.append('identityProofCountryOfIssue', formData.identityProofCountryOfIssue);
-      
-      // Addresses
-      if (formData.residentialAddress && formData.residentialAddress.addressLine1) {
-        formDataPayload.append('residentialAddress', JSON.stringify(formData.residentialAddress));
-      }
-      if (formData.businessAddress && formData.businessAddress.addressLine1) {
-        formDataPayload.append('businessAddress', JSON.stringify(formData.businessAddress));
-      }
-
-      // Add document files
-      const documentMapping = {
-        'governmentId': 'governmentId',
-        'proofOfResidence': 'proofOfResidence', 
-        'selfieWithId': 'selfieWithId'
-      };
-      
-      for (const [frontendField, backendField] of Object.entries(documentMapping)) {
-        const fileData = uploadedFiles[frontendField];
-        if (fileData && fileData.file) {
-          formDataPayload.append(backendField, fileData.file);
-        } else {
-          throw new Error(`${frontendField} document is required`);
-        }
-      }
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        credentials: 'include',
-        body: formDataPayload
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Seller profile creation failed');
-      }
-
-      setSellerCreated(true);
-      setSellerId(data.sellerId);
-      
-      // If professional subscription, go to payment step
-      if (formData.subscriptionType === 'professional') {
-        localStorage.setItem('pendingSellerId', data.sellerId);
-        sessionStorage.setItem('pendingSellerId', data.sellerId);
-        
-        console.log('Stored seller ID for payment:', data.sellerId);
-        
-        setCurrentStep(6);
-        toast.success('Account created! Now complete your ₦25,000 subscription payment.');
-      } else {
-        // UPDATED: For free accounts, redirect to AwaitVerification instead of dashboard
-        toast.success('Seller profile created successfully! Your documents will be reviewed within 2-3 business days.');
-        setTimeout(() => {
-          router.push('/await-verification?type=free');
-        }, 2000);
-      }
-      
-    } catch (error) {
-      console.error('Seller profile creation error:', error);
-      toast.error(error.message || 'Profile creation failed. Please try again.');
-    } finally {
-      setLoading(false);
+    // Personal details
+    formDataPayload.append('countryOfCitizenship', formData.countryOfCitizenship);
+    formDataPayload.append('countryOfBirth', formData.countryOfBirth);
+    formDataPayload.append('dateOfBirth', formData.dateOfBirth);
+    
+    // Business details
+    formDataPayload.append('businessType', formData.businessType);
+    formDataPayload.append('businessLocation', formData.businessLocation);
+    formDataPayload.append('businessName', formData.businessName);
+    if (formData.companyRegistrationNumber) {
+      formDataPayload.append('companyRegistrationNumber', formData.companyRegistrationNumber);
     }
-  };
+    
+    // Tax configuration
+    formDataPayload.append('taxStatus', formData.taxStatus);
+    if (formData.taxId) {
+      formDataPayload.append('taxId', formData.taxId);
+    }
+    if (formData.taxConfig && formData.taxStatus === 'taxable') {
+      formDataPayload.append('taxConfig', JSON.stringify(formData.taxConfig));
+    }
+    
+    // Store details
+    formDataPayload.append('storeName', formData.storeName);
+    formDataPayload.append('subscriptionType', formData.subscriptionType);
+    
+    // Document types
+    formDataPayload.append('governmentIdType', formData.governmentIdType);
+    formDataPayload.append('proofOfResidenceType', formData.proofOfResidenceType);
+    formDataPayload.append('identityProofType', formData.governmentIdType);
+    formDataPayload.append('identityProofCountryOfIssue', formData.identityProofCountryOfIssue);
+    
+    // Addresses
+    if (formData.residentialAddress && formData.residentialAddress.addressLine1) {
+      formDataPayload.append('residentialAddress', JSON.stringify(formData.residentialAddress));
+    }
+    if (formData.businessAddress && formData.businessAddress.addressLine1) {
+      formDataPayload.append('businessAddress', JSON.stringify(formData.businessAddress));
+    }
+
+    // Add document files
+    const documentMapping = {
+      'governmentId': 'governmentId',
+      'proofOfResidence': 'proofOfResidence', 
+      'selfieWithId': 'selfieWithId'
+    };
+    
+    for (const [frontendField, backendField] of Object.entries(documentMapping)) {
+      const fileData = uploadedFiles[frontendField];
+      if (fileData && fileData.file) {
+        formDataPayload.append(backendField, fileData.file);
+      } else {
+        throw new Error(`${frontendField} document is required`);
+      }
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'include',
+      body: formDataPayload
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Seller profile creation failed');
+    }
+
+    setSellerCreated(true);
+    setSellerId(data.sellerId);
+    
+    // Build success message with tax info
+    let successMessage = 'Account created successfully!';
+    if (data.taxStatus === 'taxable' && data.taxInfo) {
+      successMessage += ` Tax registered: ${data.taxInfo.taxName} (${data.taxInfo.taxRate}%)`;
+    }
+    
+    // If professional subscription, go to payment step
+    if (formData.subscriptionType === 'professional') {
+      localStorage.setItem('pendingSellerId', data.sellerId);
+      sessionStorage.setItem('pendingSellerId', data.sellerId);
+      
+      console.log('Stored seller ID for payment:', data.sellerId);
+      
+      setCurrentStep(7); // Updated to step 7 (was 6)
+      toast.success(successMessage + ' Now complete your $25 subscription payment.');
+    } else {
+      // For free accounts, redirect to AwaitVerification
+      toast.success(successMessage + ' Your documents will be reviewed within 2-3 business days.');
+      setTimeout(() => {
+        router.push('/await-verification?type=free');
+      }, 2000);
+    }
+    
+  } catch (error) {
+    console.error('Seller profile creation error:', error);
+    toast.error(error.message || 'Profile creation failed. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const renderCurrentStep = () => {
     const stepProps = {
@@ -323,16 +339,24 @@ export default function SellOnKhalifrex() {
             setShowBusinessAddressSuggestions={setShowBusinessAddressSuggestions}
           />
         );
-      case 3:
-        return <StoreSetupStep {...stepProps} />;
+        case 3:
+      // NEW: Tax Configuration Step
+      return (
+        <TaxConfigurationStep
+          {...stepProps}
+          countries={countries}
+        />
+      );
       case 4:
+        return <StoreSetupStep {...stepProps} />;
+      case 5:
         return (
           <div className="space-y-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Subscription Information</h2>
             
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
               <h3 className="text-lg font-medium text-amber-800 mb-2">
-                Professional Subscription - ₦25,000/month
+                Professional Subscription - $25/month
               </h3>
               <p className="text-sm text-amber-700 mb-4">
                 Payment will be processed after your account is created. This ensures you don&apos;t lose your registration data.
@@ -341,6 +365,12 @@ export default function SellOnKhalifrex() {
               <div className="bg-white border border-amber-200 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-gray-800 mb-2">Professional Features Include:</h4>
                 <ul className="text-xs text-gray-600 space-y-1">
+                  <li className="flex items-center">
+                    <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    5% commission rate (instead of 10%)
+                  </li>
                   <li className="flex items-center">
                     <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -357,20 +387,14 @@ export default function SellOnKhalifrex() {
                     <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    Bulk product management tools
-                  </li>
-                  <li className="flex items-center">
-                    <svg className="w-3 h-3 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Enhanced store customization
+                    Early access to new features
                   </li>
                 </ul>
               </div>
             </div>
           </div>
         );
-      case 5:
+      case 6:
         return (
           <DocumentsStep
             {...stepProps}
@@ -380,7 +404,7 @@ export default function SellOnKhalifrex() {
             removeFile={removeFile}
           />
         );
-      case 6:
+      case 7:
         // Payment step for professional users (after account creation)
         if (formData.subscriptionType === 'professional' && sellerCreated) {
           return (
@@ -410,11 +434,12 @@ export default function SellOnKhalifrex() {
   const getStepName = (step) => {
     const stepNames = {
       1: 'Personal Info',
-      2: 'Business Details', 
-      3: 'Store Setup',
-      4: 'Subscription',
-      5: 'Documents',
-      6: formData.subscriptionType === 'professional' && sellerCreated ? 'Payment' : 'Review'
+      2: 'Business Details',
+      3: 'Tax Config', 
+      4: 'Store Setup',
+      5: 'Subscription',
+      6: 'Documents',
+      7: formData.subscriptionType === 'professional' && sellerCreated ? 'Payment' : 'Review'
     };
     
     // For free users, adjust step names
@@ -422,9 +447,10 @@ export default function SellOnKhalifrex() {
       return {
         1: 'Personal Info',
         2: 'Business Details',
-        3: 'Store Setup', 
-        5: 'Documents',
-        6: 'Review'
+        3: 'Tax Config',
+        4: 'Store Setup', 
+        6: 'Documents',
+        7: 'Review'
       }[step];
     }
     
@@ -513,59 +539,33 @@ export default function SellOnKhalifrex() {
 
             {/* Action Buttons */}
             <div className="flex justify-between pt-6 border-t border-gray-200">
-              {currentStep > 1 && (
-                <button
-                  type="button"
-                  onClick={handlePrevStep}
-                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 focus:ring-4 focus:ring-gray-100 transition-all duration-200"
-                >
-                  Previous
-                </button>
-              )}
-              
-              <div className="flex-1 flex justify-end">
-                {currentStep < totalSteps ? (
-                  <button
-                    type="button"
-                    onClick={handleNextStep}
-                    className="px-8 py-3 text-white rounded-lg font-medium hover:opacity-90 focus:ring-4 transition-all duration-200 transform hover:scale-[1.02]"
-                    style={{ 
-                      backgroundColor: '#0C7FD2',
-                      '--tw-ring-color': '#0C7FD2',
-                      '--tw-ring-opacity': '0.3'
-                    }}
-                  >
-                    Next Step
-                  </button>
-                ) : (
-                  !sellerCreated && (
-                    <button
-                      type="submit"
-                      onClick={handleCreateSellerAccount}
-                      disabled={loading}
-                      className="px-8 py-3 text-white rounded-lg font-medium hover:opacity-90 focus:ring-4 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                      style={{ 
-                        backgroundColor: '#0C7FD2',
-                        '--tw-ring-color': '#0C7FD2',
-                        '--tw-ring-opacity': '0.3'
-                      }}
-                    >
-                      {loading ? (
-                        <div className="flex items-center justify-center">
-                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Creating Account...
-                        </div>
-                      ) : (
-                        'Create Seller Account'
-                      )}
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
+  {currentStep > 1 && currentStep !== 7 && (
+    <button
+      type="button"
+      onClick={handlePrevStep}
+      className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 focus:ring-4 focus:ring-gray-100 transition-all duration-200"
+    >
+      Previous
+    </button>
+  )}
+  
+  <div className="flex-1 flex justify-end">
+    {currentStep < totalSteps && (
+      <button
+        type="button"
+        onClick={handleNextStep}
+        className="px-8 py-3 text-white rounded-lg font-medium hover:opacity-90 focus:ring-4 transition-all duration-200 transform hover:scale-[1.02]"
+        style={{ 
+          backgroundColor: '#0C7FD2',
+          '--tw-ring-color': '#0C7FD2',
+          '--tw-ring-opacity': '0.3'
+        }}
+      >
+        Next Step
+      </button>
+    )}
+  </div>
+</div>
           </div>
         </div>
       </div>

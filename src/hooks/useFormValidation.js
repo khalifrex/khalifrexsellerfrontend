@@ -51,7 +51,7 @@ export function useFormValidation() {
         if (!formData.businessType) newErrors.businessType = 'Business type is required';
         if (!formData.businessName.trim()) newErrors.businessName = 'Business name is required';
         
-        if ((formData.businessType === 'company bussinesss' || formData.businessType === 'state-owned business') && !formData.companyRegistrationNumber?.trim()) {
+        if ((formData.businessType === 'company business' || formData.businessType === 'state-owned business') && !formData.companyRegistrationNumber?.trim()) {
           newErrors.companyRegistrationNumber = 'Registration number is required for this business type';
         }
         
@@ -62,16 +62,58 @@ export function useFormValidation() {
         }
         break;
         
-      case 3: // Store Setup
+      case 3: // Tax Configuration (NEW STEP)
+        const isCompanyOrStateOwned = 
+          formData.businessType === 'company business' || 
+          formData.businessType === 'state-owned business';
+        
+        const isTaxable = formData.taxStatus === 'taxable';
+        
+        // For company/state-owned, tax fields are required
+        if (isCompanyOrStateOwned) {
+          if (!formData.taxId?.trim()) {
+            newErrors.taxId = 'Tax registration number is required for company/state-owned businesses';
+          }
+          if (!formData.taxConfig?.taxName) {
+            newErrors.taxName = 'Tax type is required';
+          }
+          if (formData.taxConfig?.taxRate === undefined || formData.taxConfig?.taxRate === null || formData.taxConfig?.taxRate < 0) {
+            newErrors.taxRate = 'Valid tax rate is required';
+          }
+          if (!formData.taxConfig?.country) {
+            newErrors.taxCountry = 'Tax country is required';
+          }
+        }
+        
+        // For individual business with taxable status
+        if (formData.businessType === 'individual business' && isTaxable) {
+          if (!formData.taxId?.trim()) {
+            newErrors.taxId = 'Tax registration number is required when tax status is taxable';
+          }
+          if (!formData.taxConfig?.taxName) {
+            newErrors.taxName = 'Tax type is required';
+          }
+          if (formData.taxConfig?.taxRate === undefined || formData.taxConfig?.taxRate === null || formData.taxConfig?.taxRate < 0) {
+            newErrors.taxRate = 'Valid tax rate is required';
+          }
+        }
+        
+        // Validate tax rate range
+        if (formData.taxConfig?.taxRate !== undefined && (formData.taxConfig.taxRate < 0 || formData.taxConfig.taxRate > 100)) {
+          newErrors.taxRate = 'Tax rate must be between 0 and 100';
+        }
+        break;
+        
+      case 4: // Store Setup
         if (!formData.storeName.trim()) newErrors.storeName = 'Store name is required';
         if (formData.storeName.trim().length < 3) newErrors.storeName = 'Store name must be at least 3 characters';
         break;
         
-      case 4: // Subscription Info (Professional only - no payment validation)
+      case 5: // Subscription Info (Professional only - no payment validation)
         // No validation needed - just informational step
         break;
         
-      case 5: // Documents
+      case 6: // Documents
         // Validate document type selections
         if (!formData.governmentIdType) {
           newErrors.governmentIdType = 'Please select your government ID type';

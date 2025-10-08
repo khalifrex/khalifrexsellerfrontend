@@ -4,8 +4,10 @@ import VariantSummary from "./OfferVariantSummary";
 import OffersSection from "./OfferSelection";
 import PreSubmissionChecklist from "./PreSubmissionChecklist";
 import ZoneSelectorModal from "./ZoneSelectorModal";
+import StandaloneProductGTIN from "./StandaloneProductGTIN";
 import { useShippingZones } from "@/hooks/useShippingZones";
 import { useOfferData } from "@/hooks/useOfferData";
+
 export default function StepThreeOffers({
   form,
   formErrors,
@@ -20,6 +22,24 @@ export default function StepThreeOffers({
   hasVariants,
   offerData,
   setOfferData,
+  // New props for main images
+  mainImages,
+  setMainImages,
+  mainImagePreviews,
+  setMainImagePreviews,
+  handleRemoveMainImage,
+  // New props for variant images
+  variantImages,
+  setVariantImages,
+  variantImagePreviews,
+  setVariantImagePreviews,
+  handleRemoveVariantImage,
+  getRootPropsMain,
+  getInputPropsMain,
+  isDragActiveMain,
+  getRootPropsVariant,
+  getInputPropsVariant,
+  isDragActiveVariant,
 }) {
   const [showZoneSelector, setShowZoneSelector] = useState(false);
   const [currentOfferIndex, setCurrentOfferIndex] = useState(null);
@@ -48,7 +68,6 @@ export default function StepThreeOffers({
     setCurrentOfferIndex(offerIndex);
     setShowZoneSelector(true);
     
-    // Pre-select currently assigned zones
     const currentOffer = offerData[offerIndex];
     if (currentOffer?.shippingZoneIds) {
       setSelectedZones(new Set(currentOffer.shippingZoneIds));
@@ -59,7 +78,6 @@ export default function StepThreeOffers({
     }
   };
 
-  // Initialize component
   useEffect(() => {
     initializeOffers();
     fetchShippingZones();
@@ -67,19 +85,66 @@ export default function StepThreeOffers({
 
   return (
     <>
-      <h2 className="text-xl font-semibold">Images & Final Details</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Images & Final Details</h2>
+      <p className="text-gray-600 mb-6">
+        {hasVariants 
+          ? "Add main product images and configure offers for your variants"
+          : "Add product images, GTIN information, and configure your offer"
+        }
+      </p>
       
-      <ProductImages
-        getRootProps={getRootProps}
-        getInputProps={getInputProps}
-        isDragActive={isDragActive}
-        hasVariants={hasVariants}
-        formErrors={formErrors}
-        hasMounted={hasMounted}
-        imagePreviews={imagePreviews}
-        handleRemoveImage={handleRemoveImage}
-      />
+      {/* Main Product Images - Limited to 1-2 images */}
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">Main Product Images</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Upload 1-2 main images that represent the overall product (required)
+        </p>
+        <ProductImages
+          getRootProps={getRootPropsMain}
+          getInputProps={getInputPropsMain}
+          isDragActive={isDragActiveMain}
+          hasVariants={hasVariants}
+          formErrors={formErrors}
+          hasMounted={hasMounted}
+          imagePreviews={mainImagePreviews}
+          handleRemoveImage={handleRemoveMainImage}
+          maxImages={2}
+          imageType="main"
+        />
+      </div>
 
+      {/* Variant Images - For standalone products only, 5-10 images */}
+      {!hasVariants && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Variant Images</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Upload 5-10 additional images showing different angles, details, or use cases
+          </p>
+          <ProductImages
+            getRootProps={getRootPropsVariant}
+            getInputProps={getInputPropsVariant}
+            isDragActive={isDragActiveVariant}
+            hasVariants={false}
+            formErrors={formErrors}
+            hasMounted={hasMounted}
+            imagePreviews={variantImagePreviews}
+            handleRemoveImage={handleRemoveVariantImage}
+            minImages={5}
+            maxImages={10}
+            imageType="variant"
+          />
+        </div>
+      )}
+
+      {/* GTIN Information for Standalone Products*/}
+      {!hasVariants && (
+        <StandaloneProductGTIN
+          form={form}
+          formErrors={formErrors}
+          handleInput={handleInput}
+        />
+      )}
+ 
       {hasVariants && variantData.length > 0 && (
         <VariantSummary variantData={variantData} />
       )}
@@ -96,7 +161,8 @@ export default function StepThreeOffers({
       )}
 
       <PreSubmissionChecklist
-        imagePreviews={imagePreviews}
+        mainImagePreviews={mainImagePreviews}
+        variantImagePreviews={variantImagePreviews}
         hasVariants={hasVariants}
         variantData={variantData}
         offerData={offerData}
@@ -108,6 +174,7 @@ export default function StepThreeOffers({
         shippingZones={shippingZones}
         isLoadingZones={isLoadingZones}
         selectedZones={selectedZones}
+        setSelectedZones={setSelectedZones}
         handleZoneSelection={handleZoneSelection}
         handleSelectAllZones={handleSelectAllZones}
         handleClearAllZones={handleClearAllZones}

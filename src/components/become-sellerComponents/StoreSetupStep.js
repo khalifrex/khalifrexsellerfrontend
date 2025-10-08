@@ -155,11 +155,11 @@ export default function StoreSetupStep({ formData, handleInputChange, errors, up
                 <div className="text-xs text-green-600 space-y-1">
                   <div className="flex items-center">
                     <Check className="w-3 h-3 mr-2" />
-                    <span>List up to 10 products</span>
+                    <span>List up to 20 products</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="w-3 h-3 mr-2" />
-                    <span>Transaction fee: $0.50 - $0.99 per sale</span>
+                    <span>Transaction fee: 10% per sale</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="w-3 h-3 mr-2" />
@@ -194,17 +194,17 @@ export default function StoreSetupStep({ formData, handleInputChange, errors, up
                     Professional Plan
                     <span className="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">POPULAR</span>
                   </div>
-                  <div className="text-blue-800 font-bold">₦25,000/month</div>
+                  <div className="text-blue-800 font-bold">$25/month</div>
                 </div>
                 <div className="text-sm text-blue-600 mb-2">For serious sellers</div>
                 <div className="text-xs text-blue-600 space-y-1">
                   <div className="flex items-center">
                     <Check className="w-3 h-3 mr-2" />
-                    <span>Unlimited products</span>
+                    <span>Unlimited products listing</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="w-3 h-3 mr-2" />
-                    <span>Low transaction fee: $0.10 - $0.20 per sale</span>
+                    <span>Low transaction fee: 5% per sale</span>
                   </div>
                   <div className="flex items-center">
                     <Check className="w-3 h-3 mr-2" />
@@ -220,7 +220,7 @@ export default function StoreSetupStep({ formData, handleInputChange, errors, up
                   </div>
                   <div className="flex items-center">
                     <Check className="w-3 h-3 mr-2" />
-                    <span>Verified badge</span>
+                    <span>Verified badge. Coming Soon</span>
                   </div>
                 </div>
               </div>

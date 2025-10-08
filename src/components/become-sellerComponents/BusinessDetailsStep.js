@@ -60,8 +60,8 @@ export default function BusinessDetailsStep({
           style={{ '--tw-ring-color': '#0C7FD2' }}
         >
           <option value="">Select Business Type</option>
-          <option value="individual bussiness">Individual Business</option>
-          <option value="company bussinesss">Company Business</option>
+          <option value="individual business">Individual Business</option>
+          <option value="company business">Company Business</option>
           <option value="state-owned business">State-owned Business</option>
         </select>
         {errors.businessType && <p className="text-red-500 text-xs mt-1">{errors.businessType}</p>}
@@ -108,7 +108,7 @@ export default function BusinessDetailsStep({
         {errors.businessName && <p className="text-red-500 text-xs mt-1">{errors.businessName}</p>}
       </div>
 
-      {(formData.businessType === 'company bussinesss' || formData.businessType === 'state-owned business') && (
+      {(formData.businessType === 'company business' || formData.businessType === 'state-owned business') && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Company Registration Number

@@ -272,7 +272,7 @@ export default function BuyerSignupPage({
               </p>
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}
-                <Link href="/login" className="hover:underline font-medium" style={{ color: '#0C7FD2' }}>
+                <Link href="/signin" className="hover:underline font-medium" style={{ color: '#0C7FD2' }}>
                   Sign in here
                 </Link>
               </p>

@@ -84,13 +84,13 @@ export default function TopProducts() {
                   <div className="w-10 h-10 relative">
                     <Image
                       src={product.image}
-                      alt={product.name}
+                      alt={product.variantName}
                       fill
                       className="rounded object-cover"
                     />
                   </div>
                   <div>
-                    <p className="font-medium text-sm">{product.name}</p>
+                    <p className="font-medium text-sm">{product.variantName}</p>
                     <p className="text-xs text-gray-500">{product.sales} Sold</p>
                   </div>
                 </Link>

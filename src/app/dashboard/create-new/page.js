@@ -23,14 +23,21 @@ export default function CreateProduct() {
     formErrors,
     step,
     completedStep,
-    images,
+    // Main images (1-2)
+    mainImages,
+    setMainImages,
+    mainImagePreviews,
+    setMainImagePreviews,
+    handleRemoveMainImage,
+    // Variant images (5-10 for standalone)
+    variantImages,
+    setVariantImages,
+    variantImagePreviews,
+    setVariantImagePreviews,
+    handleRemoveVariantImage,
     setFormErrors,
     setForm,
-    setImages,
-    imagePreviews,
-    setImagePreviews,
     handleInput,
-    handleRemoveImage,
     handleSubmit,
     hasVariants,
     setHasVariants,
@@ -51,6 +58,46 @@ export default function CreateProduct() {
     setHasMounted(true);
   }, []);
 
+  // Dropzone for main images (1-2 images)
+  const {
+    getRootProps: getRootPropsMain,
+    getInputProps: getInputPropsMain,
+    isDragActive: isDragActiveMain
+  } = useDropzone({
+    accept: { "image/*": [] },
+    maxFiles: 2,
+    onDrop: (acceptedFiles) => {
+      const totalImages = mainImages.length + acceptedFiles.length;
+      if (totalImages > 2) {
+        toast.error("You can only upload up to 2 main images");
+        return;
+      }
+      setMainImages(prev => [...prev, ...acceptedFiles]);
+      setMainImagePreviews(prev => [...prev, ...acceptedFiles.map((f) => URL.createObjectURL(f))]);
+      setFormErrors((prev) => ({ ...prev, mainImages: null }));
+    },
+  });
+
+  // Dropzone for variant images (5-10 images for standalone products)
+  const {
+    getRootProps: getRootPropsVariant,
+    getInputProps: getInputPropsVariant,
+    isDragActive: isDragActiveVariant
+  } = useDropzone({
+    accept: { "image/*": [] },
+    maxFiles: 10,
+    onDrop: (acceptedFiles) => {
+      const totalImages = variantImages.length + acceptedFiles.length;
+      if (totalImages > 10) {
+        toast.error("You can only upload up to 10 variant images");
+        return;
+      }
+      setVariantImages(prev => [...prev, ...acceptedFiles]);
+      setVariantImagePreviews(prev => [...prev, ...acceptedFiles.map((f) => URL.createObjectURL(f))]);
+      setFormErrors((prev) => ({ ...prev, variantImages: null }));
+    },
+  });
+
   const previewProduct = hasMounted
     ? {
         _id: "preview",
@@ -58,7 +105,7 @@ export default function CreateProduct() {
         description: form.description || "Product description...",
         price: offerData[0]?.price || "0.00",
         rating: 4,
-        image: imagePreviews[0] || "/placeholder.png",
+        image: mainImagePreviews[0] || "/placeholder.png",
       }
     : null;
 
@@ -69,7 +116,6 @@ export default function CreateProduct() {
     }
   }, []);
 
-  // Get selected category data
   const selectedCategory = categories.find(cat => cat._id === form.category);
 
   useEffect(() => {
@@ -87,7 +133,6 @@ export default function CreateProduct() {
     
     fetchCategories();
     
-    // Load draft
     const draft = localStorage.getItem("productDraft");
     if (draft) {
       const parsed = JSON.parse(draft);
@@ -112,18 +157,6 @@ export default function CreateProduct() {
     }, 10000);
     return () => clearInterval(interval);
   }, [form, hasVariants, variantData, offerData]);
-
-  const dropzoneConfig = {
-    accept: { "image/*": [] },
-    maxFiles: 5,
-    onDrop: (acceptedFiles) => {
-      setImages(acceptedFiles);
-      setImagePreviews(acceptedFiles.map((f) => URL.createObjectURL(f)));
-      setFormErrors((prev) => ({ ...prev, images: null }));
-    },
-  };
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone(dropzoneConfig);
 
   const stepTitles = {
     1: "Basic Information",
@@ -225,16 +258,29 @@ export default function CreateProduct() {
               form={form}
               formErrors={formErrors}
               handleInput={handleInput}
-              getRootProps={getRootProps}
-              getInputProps={getInputProps}
-              isDragActive={isDragActive}
               hasMounted={hasMounted}
-              imagePreviews={imagePreviews}
-              handleRemoveImage={handleRemoveImage}
               hasVariants={hasVariants}
               variantData={variantData}
               offerData={offerData}
               setOfferData={setOfferData}
+              // Main images props
+              mainImages={mainImages}
+              setMainImages={setMainImages}
+              mainImagePreviews={mainImagePreviews}
+              setMainImagePreviews={setMainImagePreviews}
+              handleRemoveMainImage={handleRemoveMainImage}
+              getRootPropsMain={getRootPropsMain}
+              getInputPropsMain={getInputPropsMain}
+              isDragActiveMain={isDragActiveMain}
+              // Variant images props
+              variantImages={variantImages}
+              setVariantImages={setVariantImages}
+              variantImagePreviews={variantImagePreviews}
+              setVariantImagePreviews={setVariantImagePreviews}
+              handleRemoveVariantImage={handleRemoveVariantImage}
+              getRootPropsVariant={getRootPropsVariant}
+              getInputPropsVariant={getInputPropsVariant}
+              isDragActiveVariant={isDragActiveVariant}
             />
           )}
         </motion.div>
@@ -244,16 +290,14 @@ export default function CreateProduct() {
       <div className="mt-10 border-t pt-6">
         <h2 className="text-xl font-semibold mb-4">Live Preview</h2>
         <div className="flex justify-center">
-         
-            {previewProduct && (
-              <ProductCard product={previewProduct} />
-            )}
-            {imagePreviews.length === 0 && (
-              <p className="text-xs text-gray-500 mt-2 text-center p-4">
-                Using placeholder image until you add photos.
-              </p>
-            )}
-         
+          {previewProduct && (
+            <ProductCard product={previewProduct} />
+          )}
+          {mainImagePreviews.length === 0 && (
+            <p className="text-xs text-gray-500 mt-2 text-center p-4">
+              Using placeholder image until you add photos.
+            </p>
+          )}
         </div>
       </div>
 
@@ -322,7 +366,8 @@ export default function CreateProduct() {
         <ul className="text-sm text-yellow-700 space-y-1">
           <li>• All required fields must be completed before submission</li>
           <li>• {hasVariants ? 'Each variant needs' : 'Your product needs'} at least one offer with valid pricing</li>
-          <li>• Product images help customers make purchasing decisions</li>
+          <li>• Main images: 1-2 required, Variant images: {hasVariants ? 'optional per variant' : '5-10 required'}</li>
+          <li>• {!hasVariants && 'GTIN (UPC/EAN) is required for standalone products'}</li>
           <li>• Your draft is automatically saved every 10 seconds</li>
         </ul>
       </div>

@@ -40,7 +40,7 @@ export default function SecurityStep({ formData, onSubmit, loading }) {
             Your account will be created and then you&apos;ll be redirected to complete payment for professional features.
           </p>
           <ul className="text-xs text-amber-600 space-y-1">
-            <li>• Monthly fee: $15.00 USD</li>
+            <li>• Monthly fee: $25.00 USD</li>
             <li>• Payment processed after account creation</li>
             <li>• Features activate after successful payment</li>
           </ul>
